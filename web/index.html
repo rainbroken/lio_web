@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LIO Web Point Cloud</title>
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#071018;color:#d7e2ea;font:14px system-ui,sans-serif}
+    canvas{display:block;width:100%;height:100%;cursor:grab}.panel{position:fixed;top:14px;left:14px;padding:10px 13px;background:#0b1822dd;border:1px solid #28404d;border-radius:6px;line-height:1.6;backdrop-filter:blur(4px)}
+    .ok{color:#71e0a1}.bad{color:#ff8c8c} code{color:#9bd4ff}
+  </style>
+</head>
+<body><canvas id="view"></canvas><div class="panel"><b>LIO 点云</b><br><span id="state" class="bad">连接中...</span><br><span id="stats">等待点云</span><br><small>拖动旋转，滚轮缩放，双击复位</small></div>
+<script>
+const canvas=document.getElementById('view'), gl=canvas.getContext('webgl',{antialias:false});
+const state=document.getElementById('state'), stats=document.getElementById('stats');
+const vs=`attribute vec3 p;attribute float i;uniform mat4 m;varying float v;void main(){gl_Position=m*vec4(p,1.);gl_PointSize=2.2;v=i;}`;
+const fs=`precision mediump float;varying float v;void main(){float t=clamp(v,0.,1.);gl_FragColor=vec4(.25+.7*t,.8+.15*t,.95,1.);}`;
+function shader(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);return s}
+let pr=gl.createProgram();gl.attachShader(pr,shader(gl.VERTEX_SHADER,vs));gl.attachShader(pr,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
+let pb=gl.createBuffer(),ib=gl.createBuffer(), points=0, origin=[0,0,0], scale=1;
+let yaw=.6,pitch=-.45,dist=35,drag=false,lx=0,ly=0;
+function resize(){let d=devicePixelRatio;canvas.width=innerWidth*d;canvas.height=innerHeight*d;gl.viewport(0,0,canvas.width,canvas.height)}addEventListener('resize',resize);resize();
+canvas.onmousedown=e=>{drag=true;lx=e.clientX;ly=e.clientY};addEventListener('mouseup',()=>drag=false);addEventListener('mousemove',e=>{if(drag){yaw+=(e.clientX-lx)*.008;pitch+=(e.clientY-ly)*.008;pitch=Math.max(-1.5,Math.min(1.5,pitch));lx=e.clientX;ly=e.clientY}});
+canvas.onwheel=e=>{dist*=Math.exp(e.deltaY*.001);dist=Math.max(2,Math.min(300,dist))};canvas.ondblclick=()=>{yaw=.6;pitch=-.45;dist=35};
+function matrix(){let a=innerWidth/innerHeight, f=1/Math.tan(.5), z=.01,far=1000, c=Math.cos, s=Math.sin, cy=c(yaw),sy=s(yaw),cp=c(pitch),sp=s(pitch);let p=[f/a,0,0,0,0,f,0,0,0,0,(far+z)/(z-far),-1,0,0,2*far*z/(z-far),0];let r=[cy,0,-sy,0,sy*sp,cp,cy*sp,0,sy*cp,-sp,cy*cp,0,0,0,-dist,1],m=new Float32Array(16);for(let row=0;row<4;row++)for(let col=0;col<4;col++)m[col*4+row]=p[row]*r[col*4]+p[row+4]*r[col*4+1]+p[row+8]*r[col*4+2]+p[row+12]*r[col*4+3];return m}
+function draw(){gl.clearColor(.027,.063,.094,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.useProgram(pr);gl.uniformMatrix4fv(gl.getUniformLocation(pr,'m'),false,matrix());gl.bindBuffer(gl.ARRAY_BUFFER,pb);let p=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,ib);let i=gl.getAttribLocation(pr,'i');gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,1,gl.FLOAT,false,0,0);gl.drawArrays(gl.POINTS,0,points);requestAnimationFrame(draw)}draw();
+let lastFrameAt=0;
+function consume(buf){let d=new DataView(buf),magic=String.fromCharCode(...new Uint8Array(buf,0,4));if(magic!=='LIO1')return;points=d.getUint32(4,true);scale=d.getFloat32(8,true);origin=[d.getFloat32(12,true),d.getFloat32(16,true),d.getFloat32(20,true)];let pos=new Float32Array(points*3),col=new Float32Array(points);let q=24;for(let n=0;n<points;n++){pos[n*3]=(d.getInt16(q,true)*scale+origin[0]);pos[n*3+1]=(d.getInt16(q+2,true)*scale+origin[1]);pos[n*3+2]=(d.getInt16(q+4,true)*scale+origin[2]);col[n]=d.getUint8(q+6)/255;q+=7}gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,ib);gl.bufferData(gl.ARRAY_BUFFER,col,gl.DYNAMIC_DRAW);let now=performance.now(),fps=lastFrameAt?1000/(now-lastFrameAt):0;lastFrameAt=now;stats.textContent=`${points.toLocaleString()} 点 · ${(buf.byteLength/1024).toFixed(1)} KiB/帧 · ${fps.toFixed(1)} Hz · 量化 ${scale.toFixed(2)} m`}
+function connect(){let ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');ws.binaryType='arraybuffer';ws.onopen=()=>{state.textContent='已连接';state.className='ok'};ws.onmessage=e=>consume(e.data);ws.onclose=()=>{state.textContent='连接断开，重试中';state.className='bad';setTimeout(connect,1000)};ws.onerror=()=>ws.close()}connect();
+</script></body></html>
