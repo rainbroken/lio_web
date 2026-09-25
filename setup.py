@@ -11,6 +11,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/web', ['web/index.html']),
         ('share/' + package_name + '/launch', ['launch/lio_web.launch.py']),
+        ('share/' + package_name + '/config', ['config/web.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
