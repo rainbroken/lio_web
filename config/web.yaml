@@ -5,7 +5,9 @@ lio_web_server:
     fallback_pointcloud_topic: /lio/cloud_colored
     odometry_topic: /lio/odom
     camera_topic: /camera1/image_raw
-    camera_rate_hz: 5.0
+    camera_rate_hz: 3.0
+    camera_max_width: 480
+    camera_jpeg_quality: 50
     # Web 轨迹最多发送的点数；超限时逐步抽稀旧轨迹，保留近期细节。
     trajectory_max_points: 200000
     bind_host: 0.0.0.0

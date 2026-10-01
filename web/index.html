@@ -25,6 +25,8 @@
     .chart-wrap{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px}.chart-head{margin-bottom:0;gap:12px}.rate-stats{display:flex;gap:14px;color:#8798a6;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}.rate-stats b{color:var(--teal);font-weight:650}#rateAverage{color:var(--cyan)}#rateChart{display:block;width:100%;height:100%;min-height:0}
     @media(max-width:700px){.rate-stats{gap:7px;font-size:10px}}
     .camera-preview{position:absolute;left:14px;bottom:14px;z-index:3;width:min(30%,320px);min-width:180px;aspect-ratio:16/9;background:#080d13;border:1px solid #344352;border-radius:7px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.45)}.camera-preview img{width:100%;height:100%;display:block;object-fit:contain}.camera-label{position:absolute;left:0;top:0;right:0;padding:5px 8px;background:rgba(7,11,17,.78);font-size:10px;color:#dce5ea}.camera-status{position:absolute;inset:0;display:grid;place-items:center;color:#9cabb8;font-size:11px}.camera-preview.has-frame .camera-status{display:none}@media(max-width:700px){.camera-preview{left:10px;bottom:10px;width:min(48%,260px);min-width:145px}}
+    .camera-preview[hidden]{display:none}.view-tools button[aria-pressed="true"]{border-color:#3b7d75;color:var(--teal)}
+    .height-legend{position:absolute;right:17px;top:57px;z-index:2;display:flex;align-items:center;gap:7px;padding:8px;background:rgba(9,14,21,.84);border:1px solid #283543;border-radius:7px;color:#b9c8d1;font-size:10px}.height-legend[hidden]{display:none}.height-gradient{width:11px;height:122px;background:linear-gradient(to top,rgb(38,217,217),rgb(95,179,146),rgb(153,140,77))}.height-labels{height:122px;display:flex;flex-direction:column;justify-content:space-between;font-variant-numeric:tabular-nums}.height-labels span{white-space:nowrap}
 </style></head>
 <body>
 <main class="app">
@@ -32,9 +34,9 @@
   <section class="workspace">
     <aside class="left">
       <div class="section"><div class="section-title">实时数据</div><div class="metric-grid"><div class="metric"><div class="metric-label">扫描时长</div><div class="metric-value" id="scanDuration">—</div></div><div class="metric"><div class="metric-label">累积里程</div><div class="metric-value" id="distance">—</div></div><div class="metric"><div class="metric-label">平移速度</div><div class="metric-value" id="speed">—</div></div><div class="metric" title="后端彩色地图归档总点数，不受 Web 预览采样限制"><div class="metric-label">彩色地图点数</div><div class="metric-value" id="pointCount">—</div></div></div></div><div class="section"><div class="section-title">当前位置</div><div class="empty" id="poseText">等待 /lio/odom</div></div><div class="section"><div class="section-title">连接详情</div><div class="status-list"><div class="status-row"><span class="status-name">WebSocket</span><span></span><span class="status-num" id="wsStatus">连接中</span></div><div class="status-row"><span class="status-name">点云</span><span></span><span class="status-num" id="cloudStatus">等待数据</span></div><div class="status-row"><span class="status-name">里程计</span><span></span><span class="status-num" id="odomStatus">等待数据</span></div></div></div>
-      <div class="section"><div class="section-title">显示设置</div><div class="field"><div class="label-row"><label for="colorMode">点云着色</label></div><select class="select" id="colorMode"><option value="height">高度渐变</option><option value="rgb">原始颜色</option></select></div><div class="field"><div class="label-row"><label for="pointSize">点大小</label><span class="value" id="pointSizeVal">1 px</span></div><input class="slider" id="pointSize" type="range" min="1" max="8" value="1"></div><div class="toggle-row"><span>显示坐标网格</span><label class="switch"><input id="gridToggle" type="checkbox"><span></span></label></div><div class="hint"><span>左键旋转，中键平移，右键上下拖动或滚轮缩放；双击或点击 ⌂ 复位视角。</span></div></div>
+      <div class="section"><div class="section-title">显示设置</div><div class="field"><div class="label-row"><label for="colorMode">点云着色</label></div><select class="select" id="colorMode"><option value="rgb" selected>原始颜色</option><option value="height">高度渐变</option><option value="intensity">反射率着色</option></select></div><div class="field"><div class="label-row"><label for="pointSize">点大小</label><span class="value" id="pointSizeVal">1 px</span></div><input class="slider" id="pointSize" type="range" min="1" max="8" value="1"></div><div class="toggle-row"><span>显示坐标网格</span><label class="switch"><input id="gridToggle" type="checkbox"><span></span></label></div><div class="hint"><span>左键旋转，中键平移，右键上下拖动或滚轮缩放；双击或点击 ⌂ 复位视角。</span></div></div>
     </aside>
-    <section class="center"><div class="viewer"><canvas id="cloud"></canvas><div class="view-top"><label class="view-toggle" for="trajectoryToggle"><span>显示轨迹</span><span class="switch"><input id="trajectoryToggle" type="checkbox" checked><span></span></span></label><div class="view-tools"><button class="icon-btn" id="homeView" title="复位视角">⌂</button><button class="icon-btn" id="gridBtn" title="切换网格" aria-pressed="false">#</button><button class="icon-btn" id="fullBtn" title="全屏">⛶</button></div></div><div class="live-pill"><span class="pulse"></span><span id="liveText">连接中…</span></div><div class="camera-preview" id="cameraPreview"><img id="cameraImage" alt="当前摄像头画面"><span class="camera-label">摄像头</span><span class="camera-status" id="cameraStatus">等待相机画面</span></div><div class="axis"><canvas id="axisCanvas" width="72" height="72" role="img" aria-label="随视角旋转的 X Y Z 坐标轴"></canvas></div></div>
+    <section class="center"><div class="viewer"><canvas id="cloud"></canvas><div class="view-top"><label class="view-toggle" for="trajectoryToggle"><span>显示轨迹</span><span class="switch"><input id="trajectoryToggle" type="checkbox" checked><span></span></span></label><div class="view-tools"><button class="icon-btn" id="homeView" title="复位视角">⌂</button><button class="icon-btn" id="gridBtn" title="切换网格" aria-pressed="false">#</button><button class="icon-btn" id="cameraBtn" title="隐藏相机画面" aria-label="隐藏相机画面" aria-pressed="true">▣</button><button class="icon-btn" id="fullBtn" title="全屏" aria-label="进入全屏" aria-pressed="false">⛶</button></div></div><div class="live-pill"><span class="pulse"></span><span id="liveText">连接中…</span></div><div class="height-legend" id="heightLegend" hidden><div class="height-gradient"></div><div class="height-labels"><span id="heightMax">—</span><span id="heightMid">—</span><span id="heightMin">—</span></div></div><div class="camera-preview" id="cameraPreview"><img id="cameraImage" alt="当前摄像头画面"><span class="camera-label">摄像头</span><span class="camera-status" id="cameraStatus">等待相机画面</span></div><div class="axis"><canvas id="axisCanvas" width="72" height="72" role="img" aria-label="随视角旋转的 X Y Z 坐标轴"></canvas></div></div>
       <div class="timeline"><div class="chart-wrap"><div class="chart-head"><span class="chart-title" title="浏览器收到的概览点云快照速率，不是雷达采集帧率">点云接收速率</span><div class="rate-stats"><span>当前 <b id="rateNow">—</b> Hz</span><span>近 10 帧均值 <b id="rateAverage">—</b> Hz</span></div></div><canvas id="rateChart" role="img" aria-label="点云接收速率趋势及近十帧均值"></canvas></div><div class="events"><div class="chart-title">连接状态</div><div class="event"><span class="event-icon">●</span><span class="event-copy" id="eventText">等待 WebSocket 连接</span></div><div class="event"><span class="event-copy" id="frameInfo">等待点云帧</span></div></div></div>
     </section>
 
@@ -135,7 +137,37 @@ function draw(){
   }
   drawAxis();requestAnimationFrame(draw);
 }requestAnimationFrame(draw);
-function consume(buf){if(buf.byteLength<24)return;let d=new DataView(buf),magic=String.fromCharCode(...new Uint8Array(buf,0,4));if(magic==='LIOD'||magic==='LIOT'){consumeDetail(buf);return}if(magic!=='LIO2'&&magic!=='LIO1')return;let n=d.getUint32(4,true),stride=magic==='LIO2'?9:7;if(n>(buf.byteLength-24)/stride)return;count=n;scale=d.getFloat32(8,true);origin=[d.getFloat32(12,true),d.getFloat32(16,true),d.getFloat32(20,true)];let pos=new Float32Array(n*3),col=new Float32Array(n*3),height=new Float32Array(n*3);let zmin=Infinity,zmax=-Infinity,xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity,q=24;for(let i=0;i<n;i++){let x=d.getInt16(q,true)*scale+origin[0],y=d.getInt16(q+2,true)*scale+origin[1],z=d.getInt16(q+4,true)*scale+origin[2];pos.set([x,y,z],i*3);xmin=Math.min(xmin,x);xmax=Math.max(xmax,x);ymin=Math.min(ymin,y);ymax=Math.max(ymax,y);zmin=Math.min(zmin,z);zmax=Math.max(zmax,z);if(magic==='LIO2'){col.set([d.getUint8(q+6)/255,d.getUint8(q+7)/255,d.getUint8(q+8)/255],i*3)}else{let v=d.getUint8(q+6)/255;col.set([v,v,v],i*3)}q+=stride}for(let i=0;i<n;i++){let t=(pos[i*3+2]-zmin)/Math.max(.01,zmax-zmin);height.set([.15+t*.45,.85-t*.3,.85-t*.55],i*3)}if(n&&autoFollow){focus=[(xmin+xmax)/2,(ymin+ymax)/2,(zmin+zmax)/2];gridHeight=zmin-.1;detailDirty=true;dist=Math.max(8,Math.min(500,Math.max(xmax-xmin,ymax-ymin,zmax-zmin)*1.5))}overviewPositions=pos;gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,$('#colorMode').value==='height'?height:col,gl.DYNAMIC_DRAW);window.cloudColors={rgb:col,height};let now=performance.now(),hz=lastFrameAt?1000/(now-lastFrameAt):0;lastFrameAt=now;lastCloudAt=now;if(hz>0&&hz<1000){rateHistory.push(hz);rateHistory=rateHistory.slice(-80)}$('#frameInfo').textContent=`${(buf.byteLength/1024).toFixed(0)} KiB/帧 · 量化 ${scale.toFixed(2)} m · ${magic}`;$('#cloudStatus').textContent='正在接收';$('#liveText').textContent=`正在接收点云 · ${hz?hz.toFixed(1):'—'} Hz`;$('#footerTime').textContent='最新点云：刚刚';drawRate()}
+let heightRange=[0,1];
+function heightColor(z){const t=Math.max(0,Math.min(1,(z-heightRange[0])/Math.max(.01,heightRange[1]-heightRange[0])));return [.15+t*.45,.85-t*.3,.85-t*.55]}
+function intensityColor(value){const t=Math.max(0,Math.min(1,value));return [.12+t*.88,.17+t*.76,.22+t*.45]}
+function updateHeightLegend(){const visible=$('#colorMode').value==='height';$('#heightLegend').hidden=!visible;if(visible){$('#heightMin').textContent=heightRange[0].toFixed(1)+' m';$('#heightMid').textContent=((heightRange[0]+heightRange[1])/2).toFixed(1)+' m';$('#heightMax').textContent=heightRange[1].toFixed(1)+' m'}}
+function consume(buf){
+  if(buf.byteLength<24)return;
+  const d=new DataView(buf),magic=String.fromCharCode(...new Uint8Array(buf,0,4));
+  if(['LIOD','LIOT','LID3','LIT3'].includes(magic)){consumeDetail(buf);return}
+  const stride=magic==='LIO3'?10:magic==='LIO2'?9:magic==='LIO1'?7:0;
+  if(!stride)return;
+  const n=d.getUint32(4,true);if(n>(buf.byteLength-24)/stride)return;
+  count=n;scale=d.getFloat32(8,true);origin=[d.getFloat32(12,true),d.getFloat32(16,true),d.getFloat32(20,true)];
+  const pos=new Float32Array(n*3),rgb=new Float32Array(n*3),strength=new Float32Array(n*3);
+  let zmin=Infinity,zmax=-Infinity,xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity,q=24;
+  for(let i=0;i<n;i++,q+=stride){
+    const x=d.getInt16(q,true)*scale+origin[0],y=d.getInt16(q+2,true)*scale+origin[1],z=d.getInt16(q+4,true)*scale+origin[2];
+    pos.set([x,y,z],i*3);xmin=Math.min(xmin,x);xmax=Math.max(xmax,x);ymin=Math.min(ymin,y);ymax=Math.max(ymax,y);zmin=Math.min(zmin,z);zmax=Math.max(zmax,z);
+    const color=stride===7?[d.getUint8(q+6)/255,d.getUint8(q+6)/255,d.getUint8(q+6)/255]:[d.getUint8(q+6)/255,d.getUint8(q+7)/255,d.getUint8(q+8)/255];
+    rgb.set(color,i*3);strength.set(intensityColor(stride===10?d.getUint8(q+9)/255:(color[0]+color[1]+color[2])/3),i*3);
+  }
+  if(n)heightRange=[zmin,zmax];updateHeightLegend();
+  const height=new Float32Array(n*3);for(let i=0;i<n;i++)height.set(heightColor(pos[i*3+2]),i*3);
+  if(n&&autoFollow){focus=[(xmin+xmax)/2,(ymin+ymax)/2,(zmin+zmax)/2];gridHeight=zmin-.1;detailDirty=true;dist=Math.max(8,Math.min(500,Math.max(xmax-xmin,ymax-ymin,zmax-zmin)*1.5))}
+  overviewPositions=pos;window.cloudColors={rgb,height,intensity:strength};
+  gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,window.cloudColors[$('#colorMode').value],gl.DYNAMIC_DRAW);
+  const now=performance.now(),hz=lastFrameAt?1000/(now-lastFrameAt):0;lastFrameAt=now;lastCloudAt=now;
+  if(hz>0&&hz<1000){rateHistory.push(hz);rateHistory=rateHistory.slice(-80)}
+  $('#frameInfo').textContent=`${(buf.byteLength/1024).toFixed(0)} KiB/帧 · 量化 ${scale.toFixed(2)} m · ${magic}`;
+  $('#cloudStatus').textContent='正在接收';$('#liveText').textContent=`正在接收点云 · ${hz?hz.toFixed(1):'—'} Hz`;$('#footerTime').textContent='最新点云：刚刚';drawRate();
+}
 // Nearby detail is fetched from the backend archive in 5 m chunks. The
 // complete map stays on the robot; only a bounded cache lives in the browser.
 const detailPositionBuffer=gl.createBuffer(),detailColorBuffer=gl.createBuffer();
@@ -147,18 +179,21 @@ function tileKey(x,y,z){return `${x},${y},${z}`}
 function detailTileFor(x,y,z){return tileKey(Math.floor(x/5),Math.floor(y/5),Math.floor(z/5))}
 function consumeDetail(buf){
   if(buf.byteLength<24)return;
+  const magic=String.fromCharCode(...new Uint8Array(buf,0,4));
+  const stride=magic==='LID3'||magic==='LIT3'?10:9;
   let view=new DataView(buf),n=view.getUint32(4,true),scale=view.getFloat32(8,true);
-  if(n>(buf.byteLength-24)/9)return;
+  if(n>(buf.byteLength-24)/stride)return;
   let origin=[view.getFloat32(12,true),view.getFloat32(16,true),view.getFloat32(20,true)];
-  for(let i=0,q=24;i<n;i++,q+=9){
+  for(let i=0,q=24;i<n;i++,q+=stride){
     let x=view.getInt16(q,true)*scale+origin[0],y=view.getInt16(q+2,true)*scale+origin[1],z=view.getInt16(q+4,true)*scale+origin[2];
     let key=detailTileFor(x,y,z),tile=detailTiles.get(key);
     if(!tile){tile=new Map();detailTiles.set(key,tile)}
     let voxel=tileKey(Math.floor(x/.01),Math.floor(y/.01),Math.floor(z/.01));
     if(!tile.has(voxel))detailCachedPoints++;
-    tile.set(voxel,[x,y,z,view.getUint8(q+6)/255,view.getUint8(q+7)/255,view.getUint8(q+8)/255]);
+    tile.set(voxel,[x,y,z,view.getUint8(q+6)/255,view.getUint8(q+7)/255,view.getUint8(q+8)/255,
+                    stride===10?view.getUint8(q+9)/255:null]);
   }
-  detailDirty=true;if(String.fromCharCode(...new Uint8Array(buf,0,4))==='LIOD'){lastCloudAt=performance.now();$('#cloudStatus').textContent='正在接收地图增量'}
+  detailDirty=true;if(magic==='LIOD'||magic==='LID3'){lastCloudAt=performance.now();$('#cloudStatus').textContent='正在接收地图增量'}
   evictDistantTiles();
 }
 function viewCenter(){
@@ -193,8 +228,10 @@ function rebuildDetailTiles(){
     for(let point of tile.values()){
       if(index++%step||positions.length/3>=drawPointBudget)continue;
       positions.push(point[0],point[1],point[2]);
-      if($('#colorMode').value==='rgb')colors.push(point[3],point[4],point[5]);
-      else{let t=Math.max(0,Math.min(1,(point[2]-gridHeight)/10));colors.push(.15+t*.45,.85-t*.3,.85-t*.55)}
+      const mode=$('#colorMode').value;
+      if(mode==='rgb')colors.push(point[3],point[4],point[5]);
+      else if(mode==='height')colors.push(...heightColor(point[2]));
+      else colors.push(...intensityColor(point[6]===null?(point[3]+point[4]+point[5])/3:point[6]));
     }
     if(positions.length/3>=drawPointBudget)break;
   }
@@ -275,7 +312,10 @@ function telemetry(t){if(t.type!=='telemetry')return;if(Number.isInteger(t.map_g
 let cameraUrl=null,lastCameraAt=0;
 function cameraFrame(data){const bytes=new Uint8Array(data);if(bytes.length<4||bytes[0]!==67||bytes[1]!==65||bytes[2]!==77||bytes[3]!==74)return false;const url=URL.createObjectURL(new Blob([bytes.subarray(4)],{type:'image/jpeg'}));$('#cameraImage').src=url;if(cameraUrl)URL.revokeObjectURL(cameraUrl);cameraUrl=url;lastCameraAt=performance.now();$('#cameraPreview').classList.add('has-frame');return true}
 function connect(){let ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');ws.binaryType='arraybuffer';ws.onopen=()=>{['#connectionTag','#wsStatus','#eventText'].forEach(s=>$(s).textContent='已连接');$('#footerConnection').textContent='● WebSocket 已连接'};ws.onmessage=e=>typeof e.data==='string'?telemetry(JSON.parse(e.data)):(cameraFrame(e.data)||consume(e.data));ws.onclose=()=>{mapGeneration++;lastFrameAt=0;lastCloudAt=0;lastCameraAt=0;$('#cameraPreview').classList.remove('has-frame');$('#cameraStatus').textContent='连接断开';rateHistory=[];drawRate();detailTiles.clear();requestedTiles.clear();detailCachedPoints=0;detailDrawCount=0;detailDirty=true;count=0;overviewPositions=new Float32Array();gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(),gl.DYNAMIC_DRAW);['#connectionTag','#wsStatus','#eventText'].forEach(s=>$(s).textContent='已断开，重试中');$('#footerConnection').textContent='● 连接断开';$('#liveText').textContent='连接断开';setTimeout(connect,1000)};ws.onerror=()=>ws.close()}connect();
-$('#homeView').onclick=resetView;function setGrid(value){grid=value;$('#gridToggle').checked=value;$('#gridBtn').setAttribute('aria-pressed',String(value))}$('#gridBtn').onclick=()=>setGrid(!grid);$('#gridToggle').onchange=e=>setGrid(e.target.checked);$('#fullBtn').onclick=()=>document.querySelector('.viewer').requestFullscreen();$('#pointSize').oninput=e=>$('#pointSizeVal').textContent=e.target.value+' px';$('#colorMode').onchange=e=>{detailDirty=true;if(!window.cloudColors)return;gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,window.cloudColors[e.target.value],gl.DYNAMIC_DRAW)};
+$('#homeView').onclick=resetView;function setGrid(value){grid=value;$('#gridToggle').checked=value;$('#gridBtn').setAttribute('aria-pressed',String(value))}$('#gridBtn').onclick=()=>setGrid(!grid);$('#gridToggle').onchange=e=>setGrid(e.target.checked);
+$('#cameraBtn').onclick=()=>{const preview=$('#cameraPreview'),visible=preview.hidden;preview.hidden=!visible;$('#cameraBtn').setAttribute('aria-pressed',String(visible));$('#cameraBtn').title=visible?'隐藏相机画面':'显示相机画面';$('#cameraBtn').setAttribute('aria-label',$('#cameraBtn').title)};
+const viewer=document.querySelector('.viewer');$('#fullBtn').onclick=()=>document.fullscreenElement?document.exitFullscreen():viewer.requestFullscreen();document.addEventListener('fullscreenchange',()=>{const active=document.fullscreenElement===viewer;$('#fullBtn').setAttribute('aria-pressed',String(active));$('#fullBtn').title=active?'退出全屏':'全屏';$('#fullBtn').setAttribute('aria-label',active?'退出全屏':'进入全屏')});
+$('#pointSize').oninput=e=>$('#pointSizeVal').textContent=e.target.value+' px';$('#colorMode').onchange=e=>{detailDirty=true;updateHeightLegend();if(!window.cloudColors)return;gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,window.cloudColors[e.target.value],gl.DYNAMIC_DRAW)};
 $('#saveBtn').onclick=()=>{let a=document.createElement('a');a.href=canvas.toDataURL('image/png');a.download='itera_lio_view.png';a.click()};
 $('#savePcdBtn').onclick=async()=>{let button=$('#savePcdBtn');button.disabled=true;button.textContent='保存中…';try{let response=await fetch('/save-pcd',{method:'POST'}),result=await response.json();$('#eventText').textContent=result.message;button.textContent=result.success?'已保存':'保存失败'}catch(error){$('#eventText').textContent='保存请求失败：'+error.message;button.textContent='保存失败'}finally{setTimeout(()=>{button.disabled=false;button.textContent='保存点云'},3000)}};
 setInterval(()=>{let now=performance.now();if(lastCameraAt&&now-lastCameraAt>3000){$('#cameraPreview').classList.remove('has-frame');$('#cameraStatus').textContent='等待新相机画面'}if(lastCloudAt&&now-lastCloudAt>((cloudTopic==='/lio/global_map'||cloudTopic==='/lio/optimized_colored_map')?15000:5000)){$('#cloudStatus').textContent='等待新帧';$('#liveText').textContent='等待新点云'}if(lastOdomAt&&now-lastOdomAt>5000){$('#odomStatus').textContent='超过 5 秒无新数据';$('#speed').textContent='—'}if(lastCloudAt)$('#footerTime').textContent=`最新点云：${Math.floor((now-lastCloudAt)/1000)} 秒前`},1000);

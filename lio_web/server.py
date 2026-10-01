@@ -29,9 +29,9 @@ from lio_web.trajectory import TrajectoryHistory
 
 LOG = logging.getLogger('lio_web')
 HEADER = struct.Struct('<4sIf3f')  # magic, count, quantisation metres, origin xyz
-# Quantised xyz plus RGB.  The explicit little-endian format avoids native
+# Quantised xyz plus RGB and intensity. The explicit little-endian format avoids native
 # alignment padding so the browser can decode the stream deterministically.
-POINT = struct.Struct('<hhhBBB')
+POINT = struct.Struct('<hhhBBBB')
 
 
 def _field_map(msg):
@@ -68,7 +68,7 @@ def _intensity_rgb(value):
     return value, value, value
 
 
-def encode_cloud(msg, max_points, voxel_size, magic=b'LIO2'):
+def encode_cloud(msg, max_points, voxel_size, magic=b'LIO3'):
     fields = _field_map(msg)
     if not all(name in fields for name in ('x', 'y', 'z')) or msg.point_step <= 0:
         return b'', 0
@@ -93,7 +93,7 @@ def encode_cloud(msg, max_points, voxel_size, magic=b'LIO2'):
                      if intensity else 0.0)
             colour = (_read_rgb(raw, base + rgb.offset, rgb)
                       if rgb else None) or _intensity_rgb(value)
-            points[key] = (x, y, z, *colour)
+            points[key] = (x, y, z, *colour, _intensity_rgb(value)[0])
     values = list(points.values())
     if len(values) > max_points:
         stride = len(values) / max_points
@@ -104,10 +104,10 @@ def encode_cloud(msg, max_points, voxel_size, magic=b'LIO2'):
     origin = tuple(min(point[i] for point in values) for i in range(3))
     scale = max(voxel_size, 0.01)
     packed = bytearray(HEADER.pack(magic, len(values), scale, *origin))
-    for x, y, z, red, green, blue in values:
+    for x, y, z, red, green, blue, strength in values:
         q = [max(-32768, min(32767, int(round((value - origin[i]) / scale))))
              for i, value in enumerate((x, y, z))]
-        packed.extend(POINT.pack(q[0], q[1], q[2], red, green, blue))
+        packed.extend(POINT.pack(q[0], q[1], q[2], red, green, blue, strength))
     return bytes(packed), len(values)
 
 
@@ -126,7 +126,9 @@ class CloudNode(Node):
         self.declare_parameter('tile_request_max_points', 50000)
         self.declare_parameter('odometry_topic', '/lio/odom')
         self.declare_parameter('camera_topic', '/camera1/image_raw')
-        self.declare_parameter('camera_rate_hz', 5.0)
+        self.declare_parameter('camera_rate_hz', 3.0)
+        self.declare_parameter('camera_max_width', 480)
+        self.declare_parameter('camera_jpeg_quality', 50)
         self.declare_parameter('trajectory_max_points', 2000)
         self.topic = self.get_parameter('pointcloud_topic').value
         self.optimized_view = self.topic == '/lio/optimized_colored_map'
@@ -148,8 +150,12 @@ class CloudNode(Node):
         self.trajectory_max_points = int(self.get_parameter('trajectory_max_points').value)
         self.camera_topic = str(self.get_parameter('camera_topic').value)
         self.camera_rate_hz = float(self.get_parameter('camera_rate_hz').value)
+        self.camera_max_width = int(self.get_parameter('camera_max_width').value)
+        self.camera_jpeg_quality = int(self.get_parameter('camera_jpeg_quality').value)
         if not math.isfinite(self.camera_rate_hz) or self.camera_rate_hz <= 0:
             raise ValueError('camera_rate_hz must be positive')
+        if self.camera_max_width <= 0 or not 1 <= self.camera_jpeg_quality <= 100:
+            raise ValueError('camera_max_width must be positive and camera_jpeg_quality must be 1-100')
         if self.max_points <= 0 or not math.isfinite(self.voxel_size) or self.voxel_size <= 0:
             raise ValueError('max_points and voxel_size must be positive')
         if (self.tile_cache_max_points <= 0 or self.tile_draw_max_points <= 0 or
@@ -266,9 +272,11 @@ class CloudNode(Node):
         try:
             frame = self._camera_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             height, width = frame.shape[:2]
-            if width > 640:
-                frame = cv2.resize(frame, (640, max(1, round(height * 640 / width))))
-            ok, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if width > self.camera_max_width:
+                frame = cv2.resize(frame, (self.camera_max_width,
+                                           max(1, round(height * self.camera_max_width / width))))
+            ok, jpeg = cv2.imencode(
+                '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.camera_jpeg_quality])
             if ok:
                 with self._lock:
                     self._camera_frame = b'CAMJ' + jpeg.tobytes()
@@ -329,7 +337,7 @@ class CloudNode(Node):
 
     def _encode_update(self, msg):
         try:
-            payload, _ = encode_cloud(msg, 100000, 0.01, b'LIOD')
+            payload, _ = encode_cloud(msg, 100000, 0.01, b'LID3')
             if payload:
                 with self._lock:
                     self._delta_sequence += 1
@@ -571,7 +579,7 @@ class WebServer:
             finally:
                 self.node._pending_tiles.pop(request_id, None)
             body, _ = await asyncio.to_thread(
-                encode_cloud, cloud, limit, 0.01, b'LIOT')
+                encode_cloud, cloud, limit, 0.01, b'LIT3')
             status = '200 OK'
         except (KeyError, ValueError, IndexError):
             status, body = '400 Bad Request', b'invalid tile request'

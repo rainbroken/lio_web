@@ -20,6 +20,8 @@ def generate_launch_description():
         DeclareLaunchArgument('odometry_topic', default_value=str(defaults['odometry_topic'])),
         DeclareLaunchArgument('camera_topic', default_value=str(defaults['camera_topic'])),
         DeclareLaunchArgument('camera_rate_hz', default_value=str(defaults['camera_rate_hz'])),
+        DeclareLaunchArgument('camera_max_width', default_value=str(defaults['camera_max_width'])),
+        DeclareLaunchArgument('camera_jpeg_quality', default_value=str(defaults['camera_jpeg_quality'])),
         DeclareLaunchArgument('trajectory_max_points', default_value=str(defaults['trajectory_max_points'])),
         DeclareLaunchArgument('bind_host', default_value=str(defaults['bind_host'])),
         DeclareLaunchArgument('port', default_value=str(defaults['port'])),
@@ -34,6 +36,8 @@ def generate_launch_description():
                 'odometry_topic': LaunchConfiguration('odometry_topic'),
                 'camera_topic': LaunchConfiguration('camera_topic'),
                 'camera_rate_hz': ParameterValue(LaunchConfiguration('camera_rate_hz'), value_type=float),
+                'camera_max_width': ParameterValue(LaunchConfiguration('camera_max_width'), value_type=int),
+                'camera_jpeg_quality': ParameterValue(LaunchConfiguration('camera_jpeg_quality'), value_type=int),
                 'trajectory_max_points': ParameterValue(
                     LaunchConfiguration('trajectory_max_points'), value_type=int),
                 'bind_host': LaunchConfiguration('bind_host'),
