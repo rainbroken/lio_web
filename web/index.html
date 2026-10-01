@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="手持式 3D 扫描仪实时点云采集与质量监控工作台" />
+  <title>IteraLIO · 实时扫描工作台</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23070b11'/%3E%3Cg fill='%234de1c1'%3E%3Ccircle cx='8' cy='10' r='2'/%3E%3Ccircle cx='16' cy='7' r='2'/%3E%3Ccircle cx='24' cy='11' r='2'/%3E%3Ccircle cx='10' cy='20' r='2'/%3E%3Ccircle cx='19' cy='17' r='2'/%3E%3Ccircle cx='24' cy='24' r='2'/%3E%3C/g%3E%3C/svg%3E" />
+  <style>
+    :root{--bg:#070a0f;--panel:#0c1119;--panel2:#101722;--line:#202a38;--line2:#2d3949;--text:#eef5f6;--muted:#81909f;--teal:#4de1c1;--cyan:#50bfee;--amber:#f3b75a;--red:#ef6b68;--radius:10px;--shadow:0 18px 50px rgba(0,0,0,.34)}
+    *{box-sizing:border-box}html,body{height:100%;margin:0}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI","Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);font-size:14px;overflow:hidden}button,input,select{font:inherit;color:inherit}button{cursor:pointer}.app{height:100vh;display:grid;grid-template-rows:58px 1fr 30px;background:radial-gradient(circle at 55% 30%,#121b27 0,#080c12 38%,#070a0f 72%)}
+    .topbar{display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--line);background:rgba(7,10,15,.92);backdrop-filter:blur(16px);z-index:5}.brand{display:flex;align-items:center;gap:10px;min-width:244px}.logo{width:30px;height:30px;display:grid;place-items:center;border:1px solid #31554f;border-radius:8px;background:#0c1a1a}.logo svg{width:20px}.brand strong{font-size:15px;letter-spacing:.01em}.project{height:34px;border-left:1px solid var(--line);padding-left:18px;display:flex;align-items:center;gap:12px}.project-name{font-weight:600}.tag{font-size:11px;color:#a7e8dc;background:#13332e;border:1px solid #28594f;padding:3px 7px;border-radius:99px}.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}.icon-btn,.ghost-btn,.primary-btn,.danger-btn{border:1px solid var(--line2);background:#10161f;border-radius:7px;min-height:34px;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.18s ease}.icon-btn{width:34px;padding:0}.ghost-btn{padding:0 12px}.primary-btn{padding:0 14px;color:#03100d;border-color:#4de1c1;background:var(--teal);font-weight:700}.danger-btn{padding:0 14px;color:#ffe0df;border-color:#643538;background:#2a171b}.icon-btn:hover,.ghost-btn:hover{border-color:#4a5b70;background:#17202c}.primary-btn:hover{background:#74ead1}.avatar{margin-left:4px;width:30px;height:30px;border-radius:50%;background:linear-gradient(145deg,#2d6477,#4de1c1);display:grid;place-items:center;color:#061113;font-weight:800;font-size:12px}
+    .workspace{min-height:0;display:grid;grid-template-columns:244px minmax(460px,1fr) 286px}.left,.right{background:rgba(11,16,24,.94);min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#273447 transparent}.left{border-right:1px solid var(--line);padding:14px}.right{border-left:1px solid var(--line);padding:14px}.center{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) 164px}.section{padding:2px 0 16px}.section+.section{border-top:1px solid var(--line);padding-top:16px}.section-title{font-size:11px;font-weight:700;letter-spacing:.12em;color:#758493;text-transform:uppercase;margin-bottom:11px}.device-card{display:flex;align-items:center;gap:10px;padding:10px;background:#101721;border:1px solid #263140;border-radius:9px}.device-icon{width:34px;height:34px;border-radius:7px;background:#17252a;display:grid;place-items:center;color:var(--teal)}.device-main{min-width:0;flex:1}.device-name{font-weight:650;font-size:13px}.device-meta{color:var(--muted);font-size:11px;margin-top:3px}.dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 9px rgba(77,225,193,.65)}.field{margin-top:12px}.label-row{display:flex;justify-content:space-between;align-items:center;color:#b3c0cb;font-size:12px;margin-bottom:7px}.value{color:var(--text);font-variant-numeric:tabular-nums}.select{width:100%;height:34px;border-radius:7px;border:1px solid var(--line2);padding:0 10px;background:#0b1017;outline:none}.select:focus{border-color:#3b7d75}.slider{width:100%;height:4px;accent-color:var(--teal)}.toggle-row{height:36px;display:flex;align-items:center;justify-content:space-between;color:#c3ccd4}.switch{position:relative;width:34px;height:19px}.switch input{opacity:0;width:0;height:0}.switch span{position:absolute;inset:0;border-radius:99px;background:#27313d;transition:.2s}.switch span:after{content:"";position:absolute;width:13px;height:13px;left:3px;top:3px;border-radius:50%;background:#80909d;transition:.2s}.switch input:checked+span{background:#1d5d52}.switch input:checked+span:after{transform:translateX(15px);background:var(--teal)}.control-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.control-row button{width:100%}.wide{width:100%;margin-top:8px}.hint{display:flex;gap:8px;color:#90a0ae;font-size:11px;line-height:1.5;background:#0b1118;border:1px dashed #283543;border-radius:7px;padding:9px;margin-top:10px}.hint b{color:var(--amber)}
+    .viewer{position:relative;min-height:0;overflow:hidden}.viewer:after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 120px rgba(0,0,0,.25)}#cloud{width:100%;height:100%;display:block;cursor:grab}#cloud:active{cursor:grabbing}.view-top{position:absolute;left:14px;right:14px;top:14px;display:flex;justify-content:space-between;align-items:flex-start;z-index:2}.view-toggle{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line2);border-radius:8px;background:rgba(10,15,22,.84);backdrop-filter:blur(12px);font-size:12px;color:#dce5ea;cursor:pointer}.view-tools{display:flex;gap:5px}.view-tools button{background:rgba(10,15,22,.84);backdrop-filter:blur(12px)}.axis{position:absolute;right:19px;bottom:18px;width:72px;height:72px;z-index:2;pointer-events:none}.axis canvas{width:100%;height:100%;display:block}.scale{position:absolute;left:17px;bottom:16px;z-index:2;color:#9ba9b5;font-size:10px}.scale-line{width:86px;height:7px;border:1px solid #93a4b2;border-top:0;margin-top:3px}.live-pill{position:absolute;left:14px;top:62px;z-index:2;display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:7px;background:rgba(9,14,21,.8);border:1px solid #283543;color:#bdd0d8;font-size:11px}.live-pill .pulse{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 1.7s infinite}@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(77,225,193,0)}}
+    .timeline{border-top:1px solid var(--line);background:#090e15;display:grid;grid-template-columns:minmax(360px,1fr) 250px}.chart-wrap{padding:12px 16px;border-right:1px solid var(--line);min-width:0}.chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.chart-title{font-size:12px;font-weight:650}.legend{display:flex;gap:13px;color:#8493a1;font-size:10px}.legend span:before{content:"";display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:2px;background:var(--teal)}.legend span:last-child:before{background:var(--amber)}#qualityChart{width:100%;height:105px;display:block}.events{padding:12px 14px;overflow:hidden}.event{display:flex;gap:9px;margin-top:9px}.event-time{font-size:10px;color:#687786;width:35px;padding-top:2px}.event-icon{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;background:#163129;color:var(--teal);font-size:10px}.event-copy{font-size:11px;color:#a8b6c1;line-height:1.35}.event-copy b{color:#dce5ea;font-weight:600}
+    .metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.metric{background:#101721;border:1px solid #202c3a;border-radius:8px;padding:10px}.metric-label{font-size:10px;color:#788896;margin-bottom:6px}.metric-value{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}.metric-unit{font-size:10px;color:#7d8b97;margin-left:3px;font-weight:500}.good{color:var(--teal)}.warn{color:var(--amber)}.status-list{display:grid;gap:10px}.status-row{display:grid;grid-template-columns:74px 1fr auto;gap:8px;align-items:center;font-size:11px}.status-name{color:#a9b7c1}.bar{height:4px;background:#26303c;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--teal);border-radius:99px}.status-num{color:#7f8e9b;font-variant-numeric:tabular-nums}.quality-score{position:relative;padding:13px;background:linear-gradient(135deg,#10211f,#101721 60%);border:1px solid #28433f;border-radius:9px;overflow:hidden}.quality-score:after{content:"";position:absolute;width:100px;height:100px;border-radius:50%;background:rgba(77,225,193,.08);right:-35px;top:-45px}.score-top{display:flex;justify-content:space-between;align-items:center}.score-title{font-size:12px;color:#aec1c5}.score-value{font-size:26px;font-weight:760;letter-spacing:-.04em}.score-note{margin-top:5px;color:#6f9c93;font-size:10px}.mini-map{height:126px;background:#080d13;border:1px solid #202c38;border-radius:8px;position:relative;overflow:hidden}.mini-map canvas{width:100%;height:100%}.map-label{position:absolute;top:7px;left:8px;color:#70808e;font-size:9px;letter-spacing:.08em}.footer{display:flex;align-items:center;padding:0 13px;border-top:1px solid var(--line);background:#080c12;color:#687786;font-size:10px}.footer span{margin-right:18px}.footer .ok{color:#6bcab6}.footer .right-foot{margin-left:auto;margin-right:0}.toast{position:fixed;right:20px;bottom:42px;z-index:20;background:#eaf7f4;color:#0a2721;border-radius:8px;padding:11px 14px;font-size:12px;font-weight:650;box-shadow:var(--shadow);transform:translateY(16px);opacity:0;pointer-events:none;transition:.25s}.toast.show{transform:none;opacity:1}.collapsed .left{display:none}.collapsed .workspace{grid-template-columns:minmax(460px,1fr) 286px}
+    @media(max-width:980px){.workspace{grid-template-columns:210px minmax(420px,1fr)}.right{display:none}.center{grid-template-rows:minmax(0,1fr) 145px}.timeline{grid-template-columns:1fr}.events{display:none}.brand{min-width:210px}.project{display:none}}
+    @media(max-width:700px){body{overflow:auto}.app{min-height:100vh;height:auto;grid-template-rows:56px auto 30px}.workspace{display:block}.left{display:none}.center{height:calc(100vh - 86px);grid-template-rows:minmax(430px,1fr) 145px}.topbar{padding:0 10px}.brand{min-width:0}.brand span{display:none}.top-actions .ghost-btn{display:none}.metric-grid{grid-template-columns:1fr 1fr}.right{display:none}.view-top{right:10px;left:10px}.mode-tabs button{padding:6px 8px}}
+
+    .workspace{grid-template-columns:286px minmax(0,1fr)}.center{grid-template-rows:minmax(0,1fr) 164px}
+    .viewer canvas{width:100%;height:100%;display:block;touch-action:none}.empty{padding:12px;color:var(--muted);font-size:12px}
+    .legend span:last-child:before{background:var(--teal)}.left .metric-value{font-size:15px;white-space:nowrap}
+    @media(max-width:980px){.workspace{grid-template-columns:250px minmax(0,1fr)}}
+    @media(max-width:700px){.left{display:block}.center{height:calc(100vh - 86px)}}
+    .chart-wrap{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px}.chart-head{margin-bottom:0;gap:12px}.rate-stats{display:flex;gap:14px;color:#8798a6;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}.rate-stats b{color:var(--teal);font-weight:650}#rateAverage{color:var(--cyan)}#rateChart{display:block;width:100%;height:100%;min-height:0}
+    @media(max-width:700px){.rate-stats{gap:7px;font-size:10px}}
+</style></head>
+<body>
+<main class="app">
+  <header class="topbar"><div class="brand"><div class="logo">⌁</div><div><strong>IteraLIO</strong><span style="color:#5f6e7c"> / Web</span></div></div><div class="project"><span class="project-name">实时扫描工作台</span><span class="tag" id="connectionTag">连接中</span></div><div class="top-actions"><button class="primary-btn" id="savePcdBtn" title="保存当前扫描结果到 LIO 运行目录">保存点云</button><button class="ghost-btn" id="saveBtn" title="保存当前画面为 PNG">保存视图</button></div></header>
+  <section class="workspace">
+    <aside class="left">
+      <div class="section"><div class="section-title">实时数据</div><div class="metric-grid"><div class="metric"><div class="metric-label">扫描时长</div><div class="metric-value" id="scanDuration">—</div></div><div class="metric"><div class="metric-label">累积里程</div><div class="metric-value" id="distance">—</div></div><div class="metric"><div class="metric-label">平移速度</div><div class="metric-value" id="speed">—</div></div><div class="metric" title="后端彩色地图归档总点数，不受 Web 预览采样限制"><div class="metric-label">彩色地图点数</div><div class="metric-value" id="pointCount">—</div></div></div></div><div class="section"><div class="section-title">当前位置</div><div class="empty" id="poseText">等待 /lio/odom</div></div><div class="section"><div class="section-title">连接详情</div><div class="status-list"><div class="status-row"><span class="status-name">WebSocket</span><span></span><span class="status-num" id="wsStatus">连接中</span></div><div class="status-row"><span class="status-name">点云</span><span></span><span class="status-num" id="cloudStatus">等待数据</span></div><div class="status-row"><span class="status-name">里程计</span><span></span><span class="status-num" id="odomStatus">等待数据</span></div></div></div>
+      <div class="section"><div class="section-title">显示设置</div><div class="field"><div class="label-row"><label for="colorMode">点云着色</label></div><select class="select" id="colorMode"><option value="height">高度渐变</option><option value="rgb">原始颜色</option></select></div><div class="field"><div class="label-row"><label for="pointSize">点大小</label><span class="value" id="pointSizeVal">1 px</span></div><input class="slider" id="pointSize" type="range" min="1" max="8" value="1"></div><div class="toggle-row"><span>显示坐标网格</span><label class="switch"><input id="gridToggle" type="checkbox"><span></span></label></div><div class="hint"><span>左键旋转，中键平移，右键上下拖动或滚轮缩放；双击或点击 ⌂ 复位视角。</span></div></div>
+    </aside>
+    <section class="center"><div class="viewer"><canvas id="cloud"></canvas><div class="view-top"><label class="view-toggle" for="trajectoryToggle"><span>显示轨迹</span><span class="switch"><input id="trajectoryToggle" type="checkbox" checked><span></span></span></label><div class="view-tools"><button class="icon-btn" id="homeView" title="复位视角">⌂</button><button class="icon-btn" id="gridBtn" title="切换网格" aria-pressed="false">#</button><button class="icon-btn" id="fullBtn" title="全屏">⛶</button></div></div><div class="live-pill"><span class="pulse"></span><span id="liveText">连接中…</span></div><div class="axis"><canvas id="axisCanvas" width="72" height="72" role="img" aria-label="随视角旋转的 X Y Z 坐标轴"></canvas></div></div>
+      <div class="timeline"><div class="chart-wrap"><div class="chart-head"><span class="chart-title" title="浏览器收到的概览点云快照速率，不是雷达采集帧率">点云接收速率</span><div class="rate-stats"><span>当前 <b id="rateNow">—</b> Hz</span><span>近 10 帧均值 <b id="rateAverage">—</b> Hz</span></div></div><canvas id="rateChart" role="img" aria-label="点云接收速率趋势及近十帧均值"></canvas></div><div class="events"><div class="chart-title">连接状态</div><div class="event"><span class="event-icon">●</span><span class="event-copy" id="eventText">等待 WebSocket 连接</span></div><div class="event"><span class="event-copy" id="frameInfo">等待点云帧</span></div></div></div>
+    </section>
+
+  </section><footer class="footer"><span id="footerConnection">● 连接中</span><span id="footerTopic">ROS 2</span><span class="right-foot" id="footerTime">等待点云</span></footer>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const integer=n=>Math.trunc(n).toLocaleString('en-US');
+const oneDecimal=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+function durationText(seconds){let n=Math.floor(Math.max(0,seconds));return [Math.floor(n/3600),Math.floor(n%3600/60),n%60].map(v=>String(v).padStart(2,'0')).join(':')}
+const canvas=$('#cloud'),gl=canvas.getContext('webgl',{antialias:false,preserveDrawingBuffer:true});
+let count=0,origin=[0,0,0],scale=1,yaw=0,pitch=0,dist=35,panX=0,panY=0,dragButton=-1,lx=0,ly=0,grid=false;
+let lastFrameAt=0,lastCloudAt=0,lastOdomAt=0,trajectory=[],pose=null,rateHistory=[],cloudTopic='/lio/global_map',focus=[0,0,0],gridHeight=0,autoFollow=true;
+if(!gl){$('#liveText').textContent='浏览器不支持 WebGL';throw Error('WebGL unavailable')}
+const vs=`attribute vec3 p;attribute vec3 c;uniform mat4 m;uniform vec3 center;uniform float pointSize;varying vec3 v;void main(){gl_Position=m*vec4(p-center,1.);gl_PointSize=pointSize;v=c;}`;
+const fs=`precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.);}`;
+function shader(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);return s}
+let pr=gl.createProgram();gl.attachShader(pr,shader(gl.VERTEX_SHADER,vs));gl.attachShader(pr,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);
+let pb=gl.createBuffer(),cb=gl.createBuffer(),hb=gl.createBuffer(),gb=gl.createBuffer();
+function resize(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio,2);if(canvas.width!==Math.round(r.width*d)||canvas.height!==Math.round(r.height*d)){canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);gl.viewport(0,0,canvas.width,canvas.height)}}
+canvas.oncontextmenu=e=>e.preventDefault();
+canvas.onpointerdown=e=>{if(e.button>2)return;e.preventDefault();autoFollow=false;dragButton=e.button;lx=e.clientX;ly=e.clientY;canvas.setPointerCapture(e.pointerId)};
+canvas.onpointerup=()=>dragButton=-1;canvas.onpointercancel=()=>dragButton=-1;
+canvas.onpointermove=e=>{if(dragButton<0)return;let dx=e.clientX-lx,dy=e.clientY-ly;if(dragButton===0){yaw-=dx*.008;pitch=Math.max(-1.5,Math.min(1.5,pitch+dy*.008))}else if(dragButton===1){let metresPerPixel=2*dist*Math.tan(.5)/Math.max(1,canvas.clientHeight);panX+=dx*metresPerPixel;panY-=dy*metresPerPixel}else if(dragButton===2){dist=Math.max(2,Math.min(300,dist*Math.exp(dy*.01)))}lx=e.clientX;ly=e.clientY;detailDirty=true};
+canvas.onwheel=e=>{e.preventDefault();autoFollow=false;dist=Math.max(2,Math.min(300,dist*Math.exp(e.deltaY*.001)));detailDirty=true};canvas.ondblclick=resetView;
+function resetView(){yaw=0;pitch=0;dist=35;panX=0;panY=0;autoFollow=true;detailDirty=true}
+function matrix(){let a=canvas.width/Math.max(1,canvas.height),f=1/Math.tan(.5),z=.01,far=1000,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);let p=[f/a,0,0,0,0,f,0,0,0,0,(far+z)/(z-far),-1,0,0,2*far*z/(z-far),0];let r=[sy,sp*cy,-cp*cy,0,-cy,sp*sy,-cp*sy,0,0,cp,sp,0,panX,panY,-dist,1],m=new Float32Array(16);for(let row=0;row<4;row++)for(let col=0;col<4;col++)m[col*4+row]=p[row]*r[col*4]+p[row+4]*r[col*4+1]+p[row+8]*r[col*4+2]+p[row+12]*r[col*4+3];return m}
+const axisCanvas=$('#axisCanvas'),axisCtx=axisCanvas.getContext('2d');
+function drawAxis(){
+  const size=72,d=Math.min(devicePixelRatio,2);
+  if(axisCanvas.width!==size*d||axisCanvas.height!==size*d){axisCanvas.width=size*d;axisCanvas.height=size*d;axisCtx.setTransform(d,0,0,d,0,0)}
+  axisCtx.clearRect(0,0,size,size);
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  const axes=[{name:'X',x:sy,y:sp*cy,depth:-cp*cy,color:'#ee7270'},
+              {name:'Y',x:-cy,y:sp*sy,depth:-cp*sy,color:'#65d593'},
+              {name:'Z',x:0,y:cp,depth:sp,color:'#63aef2'}];
+  const center=size/2,length=22;
+  axes.sort((a,b)=>a.depth-b.depth);
+  axisCtx.lineWidth=2.5;axisCtx.lineCap='round';axisCtx.font='bold 11px system-ui,sans-serif';
+  for(const axis of axes){
+    const x=center+axis.x*length,y=center-axis.y*length;
+    axisCtx.strokeStyle=axis.color;axisCtx.fillStyle=axis.color;
+    axisCtx.beginPath();axisCtx.moveTo(center,center);axisCtx.lineTo(x,y);axisCtx.stroke();
+    axisCtx.beginPath();axisCtx.arc(x,y,2.5,0,Math.PI*2);axisCtx.fill();
+    axisCtx.fillText(axis.name,x+4,y-4);
+  }
+  axisCtx.fillStyle='#dce5ea';axisCtx.beginPath();axisCtx.arc(center,center,2,0,Math.PI*2);axisCtx.fill();
+}
+function drawGrid(){if(!grid)return;let vertices=[];for(let i=-10;i<=10;i++){vertices.push(focus[0]-10,focus[1]+i,gridHeight,focus[0]+10,focus[1]+i,gridHeight,focus[0]+i,focus[1]-10,gridHeight,focus[0]+i,focus[1]+10,gridHeight)}gl.bindBuffer(gl.ARRAY_BUFFER,gb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);let p=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,3,gl.FLOAT,false,0,0);gl.disableVertexAttribArray(gl.getAttribLocation(pr,'c'));gl.vertexAttrib3f(gl.getAttribLocation(pr,'c'),.16,.24,.28);gl.drawArrays(gl.LINES,0,vertices.length/3)}
+function draw(){
+  resize();gl.clearColor(.027,.043,.067,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.useProgram(pr);
+  gl.uniformMatrix4fv(gl.getUniformLocation(pr,'m'),false,matrix());
+  gl.uniform3fv(gl.getUniformLocation(pr,'center'),focus);
+  gl.uniform1f(gl.getUniformLocation(pr,'pointSize'),Number($('#pointSize').value)*Math.min(devicePixelRatio,2));
+  drawGrid();
+  const p=gl.getAttribLocation(pr,'p'),c=gl.getAttribLocation(pr,'c');
+  gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.enableVertexAttribArray(c);gl.vertexAttribPointer(c,3,gl.FLOAT,false,0,0);
+  gl.drawArrays(gl.POINTS,0,count);drawDetailTiles(p,c);
+  if($('#trajectoryToggle').checked&&trajectory.length){
+    gl.disable(gl.DEPTH_TEST);
+    gl.bindBuffer(gl.ARRAY_BUFFER,hb);gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,3,gl.FLOAT,false,0,0);
+    gl.disableVertexAttribArray(c);gl.vertexAttrib3f(c,.3,.88,.76);
+    gl.lineWidth(2);gl.drawArrays(gl.LINE_STRIP,0,trajectory.length);
+    gl.enable(gl.DEPTH_TEST);
+  }
+  drawAxis();requestAnimationFrame(draw);
+}requestAnimationFrame(draw);
+function consume(buf){if(buf.byteLength<24)return;let d=new DataView(buf),magic=String.fromCharCode(...new Uint8Array(buf,0,4));if(magic==='LIOD'||magic==='LIOT'){consumeDetail(buf);return}if(magic!=='LIO2'&&magic!=='LIO1')return;let n=d.getUint32(4,true),stride=magic==='LIO2'?9:7;if(n>(buf.byteLength-24)/stride)return;count=n;scale=d.getFloat32(8,true);origin=[d.getFloat32(12,true),d.getFloat32(16,true),d.getFloat32(20,true)];let pos=new Float32Array(n*3),col=new Float32Array(n*3),height=new Float32Array(n*3);let zmin=Infinity,zmax=-Infinity,xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity,q=24;for(let i=0;i<n;i++){let x=d.getInt16(q,true)*scale+origin[0],y=d.getInt16(q+2,true)*scale+origin[1],z=d.getInt16(q+4,true)*scale+origin[2];pos.set([x,y,z],i*3);xmin=Math.min(xmin,x);xmax=Math.max(xmax,x);ymin=Math.min(ymin,y);ymax=Math.max(ymax,y);zmin=Math.min(zmin,z);zmax=Math.max(zmax,z);if(magic==='LIO2'){col.set([d.getUint8(q+6)/255,d.getUint8(q+7)/255,d.getUint8(q+8)/255],i*3)}else{let v=d.getUint8(q+6)/255;col.set([v,v,v],i*3)}q+=stride}for(let i=0;i<n;i++){let t=(pos[i*3+2]-zmin)/Math.max(.01,zmax-zmin);height.set([.15+t*.45,.85-t*.3,.85-t*.55],i*3)}if(n&&autoFollow){focus=[(xmin+xmax)/2,(ymin+ymax)/2,(zmin+zmax)/2];gridHeight=zmin-.1;detailDirty=true;dist=Math.max(8,Math.min(500,Math.max(xmax-xmin,ymax-ymin,zmax-zmin)*1.5))}overviewPositions=pos;gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,$('#colorMode').value==='height'?height:col,gl.DYNAMIC_DRAW);window.cloudColors={rgb:col,height};let now=performance.now(),hz=lastFrameAt?1000/(now-lastFrameAt):0;lastFrameAt=now;lastCloudAt=now;if(hz>0&&hz<1000){rateHistory.push(hz);rateHistory=rateHistory.slice(-80)}$('#frameInfo').textContent=`${(buf.byteLength/1024).toFixed(0)} KiB/帧 · 量化 ${scale.toFixed(2)} m · ${magic}`;$('#cloudStatus').textContent='正在接收';$('#liveText').textContent=`正在接收点云 · ${hz?hz.toFixed(1):'—'} Hz`;$('#footerTime').textContent='最新点云：刚刚';drawRate()}
+// Nearby detail is fetched from the backend archive in 5 m chunks. The
+// complete map stays on the robot; only a bounded cache lives in the browser.
+const detailPositionBuffer=gl.createBuffer(),detailColorBuffer=gl.createBuffer();
+const detailTiles=new Map(),requestedTiles=new Map();
+let detailCachedPoints=0,detailDrawCount=0,detailDirty=false,lastDetailBuild=0;
+let cachePointBudget=1500000,drawPointBudget=300000,tileRequestBudget=50000,tileRequestsInFlight=0,mapGeneration=0;
+let overviewPositions=new Float32Array();
+function tileKey(x,y,z){return `${x},${y},${z}`}
+function detailTileFor(x,y,z){return tileKey(Math.floor(x/5),Math.floor(y/5),Math.floor(z/5))}
+function consumeDetail(buf){
+  if(buf.byteLength<24)return;
+  let view=new DataView(buf),n=view.getUint32(4,true),scale=view.getFloat32(8,true);
+  if(n>(buf.byteLength-24)/9)return;
+  let origin=[view.getFloat32(12,true),view.getFloat32(16,true),view.getFloat32(20,true)];
+  for(let i=0,q=24;i<n;i++,q+=9){
+    let x=view.getInt16(q,true)*scale+origin[0],y=view.getInt16(q+2,true)*scale+origin[1],z=view.getInt16(q+4,true)*scale+origin[2];
+    let key=detailTileFor(x,y,z),tile=detailTiles.get(key);
+    if(!tile){tile=new Map();detailTiles.set(key,tile)}
+    let voxel=tileKey(Math.floor(x/.01),Math.floor(y/.01),Math.floor(z/.01));
+    if(!tile.has(voxel))detailCachedPoints++;
+    tile.set(voxel,[x,y,z,view.getUint8(q+6)/255,view.getUint8(q+7)/255,view.getUint8(q+8)/255]);
+  }
+  detailDirty=true;if(String.fromCharCode(...new Uint8Array(buf,0,4))==='LIOD'){lastCloudAt=performance.now();$('#cloudStatus').textContent='正在接收地图增量'}
+  evictDistantTiles();
+}
+function viewCenter(){
+  const m=matrix();
+  let best=0.25,point=null;
+  const stride=Math.max(1,Math.ceil(overviewPositions.length/3/20000));
+  for(let i=0;i<overviewPositions.length;i+=3*stride){
+    const x=overviewPositions[i]-focus[0],y=overviewPositions[i+1]-focus[1],z=overviewPositions[i+2]-focus[2];
+    const w=m[3]*x+m[7]*y+m[11]*z+m[15];
+    if(w<=0)continue;
+    const sx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w;
+    const sy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;
+    const radius=sx*sx+sy*sy;
+    if(radius<best){best=radius;point=[overviewPositions[i],overviewPositions[i+1],overviewPositions[i+2]]}
+  }
+  if(point)return point;
+  let cy=Math.cos(yaw),sy=Math.sin(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch);
+  return [focus[0]-panX*sy-panY*sp*cy,focus[1]+panX*cy-panY*sp*sy,focus[2]-panY*cp];
+}
+function tileDistance(key,center){let xyz=key.split(',').map(Number);return Math.hypot((xyz[0]+.5)*5-center[0],(xyz[1]+.5)*5-center[1],(xyz[2]+.5)*5-center[2])}
+function evictDistantTiles(){
+  if(detailCachedPoints<=cachePointBudget)return;
+  let center=viewCenter(),ordered=[...detailTiles.keys()].sort((a,b)=>tileDistance(b,center)-tileDistance(a,center));
+  for(let key of ordered){if(detailCachedPoints<=cachePointBudget)break;detailCachedPoints-=detailTiles.get(key).size;detailTiles.delete(key);requestedTiles.delete(key)}
+  detailDirty=true;
+}
+function rebuildDetailTiles(){
+  let positions=[],colors=[],near=dist<25?15:30;
+  let center=viewCenter(),ordered=[...detailTiles.entries()].sort((a,b)=>tileDistance(a[0],center)-tileDistance(b[0],center));
+  for(let [key,tile] of ordered){
+    let distance=tileDistance(key,center),step=distance<near?1:distance<near*2?4:16,index=0;
+    for(let point of tile.values()){
+      if(index++%step||positions.length/3>=drawPointBudget)continue;
+      positions.push(point[0],point[1],point[2]);
+      if($('#colorMode').value==='rgb')colors.push(point[3],point[4],point[5]);
+      else{let t=Math.max(0,Math.min(1,(point[2]-gridHeight)/10));colors.push(.15+t*.45,.85-t*.3,.85-t*.55)}
+    }
+    if(positions.length/3>=drawPointBudget)break;
+  }
+  detailDrawCount=positions.length/3;
+  gl.bindBuffer(gl.ARRAY_BUFFER,detailPositionBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(positions),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,detailColorBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(colors),gl.DYNAMIC_DRAW);
+  detailDirty=false;lastDetailBuild=performance.now();$('#frameInfo').textContent=`全局概览 ${integer(count)} 点 · 附近细节 ${integer(detailDrawCount)} 点 · 缓存 ${integer(detailCachedPoints)} 点`;
+}
+function drawDetailTiles(p,c){
+  if(detailDirty&&performance.now()-lastDetailBuild>250)rebuildDetailTiles();
+  if(!detailDrawCount)return;
+  gl.bindBuffer(gl.ARRAY_BUFFER,detailPositionBuffer);gl.vertexAttribPointer(p,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,detailColorBuffer);gl.vertexAttribPointer(c,3,gl.FLOAT,false,0,0);
+  gl.drawArrays(gl.POINTS,0,detailDrawCount);
+}
+async function fetchTile(key,limit){
+  const generation=mapGeneration;tileRequestsInFlight++;
+  requestedTiles.set(key,{limit,at:performance.now()});
+  try{
+    let [x,y,z]=key.split(',').map(Number),response=await fetch(`/tile?x=${x}&y=${y}&z=${z}&max=${limit}`);
+    if(!response.ok)throw Error('tile request failed');
+    let payload=await response.arrayBuffer();
+    if(generation!==mapGeneration)return;
+    if(payload.byteLength)consumeDetail(payload);
+    else requestedTiles.set(key,{limit,at:performance.now()-100000});
+  }catch(error){requestedTiles.set(key,{limit,at:performance.now()-110000})}
+  finally{tileRequestsInFlight--}
+}
+function requestNearbyTiles(){
+  if(tileRequestsInFlight>=2)return;
+  let center=viewCenter();
+  let base=center.map(value=>Math.floor(value/5)),wanted=[];
+  for(let dz=-1;dz<=1;dz++)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    let key=tileKey(base[0]+dx,base[1]+dy,base[2]+dz);
+    wanted.push([Math.abs(dx)+Math.abs(dy)+Math.abs(dz),key]);
+  }
+  wanted.sort((a,b)=>a[0]-b[0]);
+  let limit=Math.min(tileRequestBudget,dist<20?50000:dist<60?20000:5000);
+  for(let [,key] of wanted){
+    let previous=requestedTiles.get(key);
+    if(previous&&previous.limit>=limit&&performance.now()-previous.at<120000)continue;
+    if(tileRequestsInFlight>=2)break;
+    fetchTile(key,limit);
+  }
+}
+setInterval(requestNearbyTiles,750);
+function size2d(c){let r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio,2);c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);let x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return [x,r.width,r.height]}
+function drawRate(){
+  const [ctx,w,h]=size2d($('#rateChart'));
+  if(!w||!h)return;
+  const left=30,right=w-8,top=10,bottom=h-17;
+  const recent=rateHistory.slice(-10);
+  const average=recent.length?recent.length/recent.reduce((seconds,value)=>seconds+1/value,0):0;
+  $('#rateNow').textContent=rateHistory.length?rateHistory[rateHistory.length-1].toFixed(2):'—';
+  $('#rateAverage').textContent=recent.length?average.toFixed(2):'—';
+  const maximum=Math.max(0.1,...rateHistory,average)*1.2;
+  const yFor=value=>bottom-value/maximum*(bottom-top);
+  ctx.font='10px system-ui,sans-serif';ctx.fillStyle='#718291';ctx.strokeStyle='#293747';ctx.lineWidth=1;
+  for(let i=0;i<3;i++){
+    const value=maximum*i/2,y=yFor(value);
+    ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
+    ctx.fillText(value.toFixed(maximum<1?2:1),2,y+3);
+  }
+  if(!rateHistory.length){ctx.fillText('等待第二帧点云以计算接收速率',left+8,(top+bottom)/2);return}
+  ctx.save();ctx.setLineDash([5,4]);ctx.strokeStyle='#50bfee';
+  ctx.beginPath();ctx.moveTo(left,yFor(average));ctx.lineTo(right,yFor(average));ctx.stroke();ctx.restore();
+  ctx.strokeStyle='#4de1c1';ctx.fillStyle='#4de1c1';ctx.lineWidth=2;
+  ctx.beginPath();rateHistory.forEach((value,index)=>{
+    const x=rateHistory.length===1?right:left+index*(right-left)/(rateHistory.length-1);
+    const y=yFor(value);index?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });ctx.stroke();
+  const x=right,y=yFor(rateHistory[rateHistory.length-1]);
+  ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
+}
+window.addEventListener('resize',drawRate);
+drawRate();
+function telemetry(t){if(t.type!=='telemetry')return;cloudTopic=t.topic;$('#footerTopic').textContent=t.topic;if(t.odometry_topic&&!pose)$('#poseText').textContent='等待 '+t.odometry_topic;if(t.colored_map_points!==null&&t.colored_map_points!==undefined)$('#pointCount').textContent=integer(t.colored_map_points);if(Number.isInteger(t.tile_cache_max_points))cachePointBudget=t.tile_cache_max_points;if(Number.isInteger(t.tile_draw_max_points))drawPointBudget=t.tile_draw_max_points;if(Number.isInteger(t.tile_request_max_points))tileRequestBudget=t.tile_request_max_points;if(t.scan_duration!==null)$('#scanDuration').textContent=durationText(t.scan_duration);if(!t.pose)return;pose=t.pose;trajectory=t.trajectory||[];lastOdomAt=performance.now();$('#distance').textContent=oneDecimal(t.distance)+' m';$('#speed').textContent=Number.isFinite(t.speed)?t.speed.toFixed(2)+' m/s':'—';$('#poseText').textContent=`位置 X ${pose[0].toFixed(2)} · Y ${pose[1].toFixed(2)} · Z ${pose[2].toFixed(2)} m`;$('#odomStatus').textContent='正在接收';gl.bindBuffer(gl.ARRAY_BUFFER,hb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(trajectory.flat()),gl.DYNAMIC_DRAW)}
+function connect(){let ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');ws.binaryType='arraybuffer';ws.onopen=()=>{['#connectionTag','#wsStatus','#eventText'].forEach(s=>$(s).textContent='已连接');$('#footerConnection').textContent='● WebSocket 已连接'};ws.onmessage=e=>typeof e.data==='string'?telemetry(JSON.parse(e.data)):consume(e.data);ws.onclose=()=>{mapGeneration++;lastFrameAt=0;lastCloudAt=0;rateHistory=[];drawRate();detailTiles.clear();requestedTiles.clear();detailCachedPoints=0;detailDrawCount=0;detailDirty=true;count=0;overviewPositions=new Float32Array();gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(),gl.DYNAMIC_DRAW);['#connectionTag','#wsStatus','#eventText'].forEach(s=>$(s).textContent='已断开，重试中');$('#footerConnection').textContent='● 连接断开';$('#liveText').textContent='连接断开';setTimeout(connect,1000)};ws.onerror=()=>ws.close()}connect();
+$('#homeView').onclick=resetView;function setGrid(value){grid=value;$('#gridToggle').checked=value;$('#gridBtn').setAttribute('aria-pressed',String(value))}$('#gridBtn').onclick=()=>setGrid(!grid);$('#gridToggle').onchange=e=>setGrid(e.target.checked);$('#fullBtn').onclick=()=>document.querySelector('.viewer').requestFullscreen();$('#pointSize').oninput=e=>$('#pointSizeVal').textContent=e.target.value+' px';$('#colorMode').onchange=e=>{detailDirty=true;if(!window.cloudColors)return;gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,window.cloudColors[e.target.value],gl.DYNAMIC_DRAW)};
+$('#saveBtn').onclick=()=>{let a=document.createElement('a');a.href=canvas.toDataURL('image/png');a.download='itera_lio_view.png';a.click()};
+$('#savePcdBtn').onclick=async()=>{let button=$('#savePcdBtn');button.disabled=true;button.textContent='保存中…';try{let response=await fetch('/save-pcd',{method:'POST'}),result=await response.json();$('#eventText').textContent=result.message;button.textContent=result.success?'已保存':'保存失败'}catch(error){$('#eventText').textContent='保存请求失败：'+error.message;button.textContent='保存失败'}finally{setTimeout(()=>{button.disabled=false;button.textContent='保存点云'},3000)}};
+setInterval(()=>{let now=performance.now();if(lastCloudAt&&now-lastCloudAt>(cloudTopic==='/lio/global_map'?15000:5000)){$('#cloudStatus').textContent='等待新帧';$('#liveText').textContent='等待新点云'}if(lastOdomAt&&now-lastOdomAt>5000){$('#odomStatus').textContent='超过 5 秒无新数据';$('#speed').textContent='—'}if(lastCloudAt)$('#footerTime').textContent=`最新点云：${Math.floor((now-lastCloudAt)/1000)} 秒前`},1000);
+</script></body></html>
