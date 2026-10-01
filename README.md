@@ -50,6 +50,8 @@ ros2 launch lio_web lio_web.launch.py \
   max_points:=12000 rate_hz:=3 voxel_size:=0.20
 ```
 
+联合启动的 Web 配置默认订阅 `/lio/optimized_colored_map`。该视图在回环优化后显示按优化位姿重建的彩色地图，并自动使用 `/lio/optimized_odom`、`/lio/optimized_path`、优化地图更新和优化细节块。要看原始地图，将 `src/lio_bringup/config/web.yaml` 中 `pointcloud_topic` 改为 `/lio/global_map`；Web 会一起切回原始地图细节块和 `/lio/odom` 轨迹。优化地图在回环优化完成前没有内容，也不会回退显示原始单帧点云。实时优化预览受 LIO 端 `global_map_voxel_size` 与 `global_map_max_points` 限制，与离线完整彩色 PCD 的密度不同。
+
 ## 带宽和速率
 
 默认每帧最多 200,000 点，单点 9 字节，加 24 字节头；完整帧约 1.8 MB。编码在后台线程执行，忙时跳过新帧，避免点云编码阻塞里程计回调。多个浏览器客户端会各自占用一份带宽。
