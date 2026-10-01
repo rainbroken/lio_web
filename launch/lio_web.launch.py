@@ -18,6 +18,8 @@ def generate_launch_description():
         DeclareLaunchArgument('pointcloud_topic', default_value=str(defaults['pointcloud_topic'])),
         DeclareLaunchArgument('fallback_pointcloud_topic', default_value=str(defaults['fallback_pointcloud_topic'])),
         DeclareLaunchArgument('odometry_topic', default_value=str(defaults['odometry_topic'])),
+        DeclareLaunchArgument('camera_topic', default_value=str(defaults['camera_topic'])),
+        DeclareLaunchArgument('camera_rate_hz', default_value=str(defaults['camera_rate_hz'])),
         DeclareLaunchArgument('trajectory_max_points', default_value=str(defaults['trajectory_max_points'])),
         DeclareLaunchArgument('bind_host', default_value=str(defaults['bind_host'])),
         DeclareLaunchArgument('port', default_value=str(defaults['port'])),
@@ -30,6 +32,8 @@ def generate_launch_description():
                 'pointcloud_topic': LaunchConfiguration('pointcloud_topic'),
                 'fallback_pointcloud_topic': LaunchConfiguration('fallback_pointcloud_topic'),
                 'odometry_topic': LaunchConfiguration('odometry_topic'),
+                'camera_topic': LaunchConfiguration('camera_topic'),
+                'camera_rate_hz': ParameterValue(LaunchConfiguration('camera_rate_hz'), value_type=float),
                 'trajectory_max_points': ParameterValue(
                     LaunchConfiguration('trajectory_max_points'), value_type=int),
                 'bind_host': LaunchConfiguration('bind_host'),

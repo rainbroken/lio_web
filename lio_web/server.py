@@ -8,6 +8,8 @@ import signal
 import struct
 import threading
 import time
+import cv2
+from cv_bridge import CvBridge
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -16,9 +18,9 @@ from urllib.parse import parse_qs, urlsplit
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import PointCloud2
-from nav_msgs.msg import Odometry
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, qos_profile_sensor_data
+from sensor_msgs.msg import Image, PointCloud2
+from nav_msgs.msg import Odometry, Path as PathMsg
 from std_msgs.msg import String, UInt64
 from std_srvs.srv import Trigger
 
@@ -123,9 +125,20 @@ class CloudNode(Node):
         self.declare_parameter('tile_draw_max_points', 300000)
         self.declare_parameter('tile_request_max_points', 50000)
         self.declare_parameter('odometry_topic', '/lio/odom')
+        self.declare_parameter('camera_topic', '/camera1/image_raw')
+        self.declare_parameter('camera_rate_hz', 5.0)
         self.declare_parameter('trajectory_max_points', 2000)
         self.topic = self.get_parameter('pointcloud_topic').value
+        self.optimized_view = self.topic == '/lio/optimized_colored_map'
+        # In optimized mode show the live raw map until the first corrected
+        # snapshot arrives. This keeps the viewer useful before loop closure.
+        self._optimized_ready = False
         self.fallback_topic = self.get_parameter('fallback_pointcloud_topic').value
+        prefix = '/lio/optimized_colored_map' if self.optimized_view else '/lio/colored_map'
+        self._updates_topic = prefix + '_updates'
+        self._tile_topic = prefix + '_tile'
+        self._tile_request_topic = prefix + '_tile_request'
+        self._count_topic = prefix + '_point_count'
         self.max_points = int(self.get_parameter('max_points').value)
         self.rate_hz = float(self.get_parameter('rate_hz').value)
         self.voxel_size = float(self.get_parameter('voxel_size').value)
@@ -133,6 +146,10 @@ class CloudNode(Node):
         self.tile_draw_max_points = int(self.get_parameter('tile_draw_max_points').value)
         self.tile_request_max_points = int(self.get_parameter('tile_request_max_points').value)
         self.trajectory_max_points = int(self.get_parameter('trajectory_max_points').value)
+        self.camera_topic = str(self.get_parameter('camera_topic').value)
+        self.camera_rate_hz = float(self.get_parameter('camera_rate_hz').value)
+        if not math.isfinite(self.camera_rate_hz) or self.camera_rate_hz <= 0:
+            raise ValueError('camera_rate_hz must be positive')
         if self.max_points <= 0 or not math.isfinite(self.voxel_size) or self.voxel_size <= 0:
             raise ValueError('max_points and voxel_size must be positive')
         if (self.tile_cache_max_points <= 0 or self.tile_draw_max_points <= 0 or
@@ -145,6 +162,12 @@ class CloudNode(Node):
         self._latest_topic = self.topic
         self._encoder = ThreadPoolExecutor(max_workers=1)
         self._update_encoder = ThreadPoolExecutor(max_workers=1)
+        self._camera_encoder = ThreadPoolExecutor(max_workers=1)
+        self._camera_bridge = CvBridge()
+        self._camera_future = None
+        self._camera_last_submit = 0.0
+        self._camera_frame = None
+        self._camera_version = 0
         self._encode_future = None
         self._delta_queue = deque(maxlen=64)
         self._delta_sequence = 0
@@ -161,39 +184,144 @@ class CloudNode(Node):
         self._last_odom_stamp = None
         self._scan_duration = None
         self._trajectory = TrajectoryHistory(self.trajectory_max_points)
+        self._optimized_trajectory = None
         self._pose_version = 0
+        self._map_generation = 0
         # Match the best-effort QoS used by LiDAR/PointCloud2 publishers.
         self.create_subscription(
             PointCloud2, self.topic,
             lambda msg: self._on_cloud(msg, self.topic), qos_profile_sensor_data)
+        if self.camera_topic:
+            self.create_subscription(Image, self.camera_topic, self._on_camera,
+                                     qos_profile_sensor_data)
+        if self.optimized_view:
+            self.create_subscription(
+                PointCloud2, '/lio/global_map',
+                lambda msg: self._on_cloud(msg, '/lio/global_map'), qos_profile_sensor_data)
         if self.fallback_topic and self.fallback_topic != self.topic:
             self.create_subscription(
                 PointCloud2, self.fallback_topic,
                 lambda msg: self._on_cloud(msg, self.fallback_topic),
                 qos_profile_sensor_data)
-        self.create_subscription(Odometry, self.get_parameter('odometry_topic').value,
-                                 self._on_odom, qos_profile_sensor_data)
-        self.create_subscription(UInt64, '/lio/colored_map_point_count',
-                                 self._on_colored_count, 10)
-        self.create_subscription(PointCloud2, '/lio/colored_map_updates',
-                                 self._on_map_update, qos_profile_sensor_data)
-        self.create_subscription(PointCloud2, '/lio/colored_map_tile',
+        self.create_subscription(Odometry,
+                                 '/lio/optimized_odom' if self.optimized_view else
+                                 self.get_parameter('odometry_topic').value,
+                                 lambda msg: self._on_odom(msg, optimized=self.optimized_view),
+                                 qos_profile_sensor_data)
+        if self.optimized_view:
+            self.create_subscription(Odometry, '/lio/odom',
+                                     lambda msg: self._on_odom(msg, optimized=False),
+                                     qos_profile_sensor_data)
+            optimized_path_qos = QoSProfile(depth=1)
+            optimized_path_qos.reliability = ReliabilityPolicy.RELIABLE
+            optimized_path_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+            self.create_subscription(PathMsg, '/lio/optimized_path',
+                                     self._on_optimized_path, optimized_path_qos)
+            self.create_subscription(UInt64, '/lio/optimized_colored_map_generation',
+                                     self._on_map_generation, 10)
+        self.create_subscription(UInt64, self._count_topic,
+                                 lambda msg: self._on_colored_count(msg, optimized=self.optimized_view), 10)
+        if self.optimized_view:
+            self.create_subscription(UInt64, '/lio/colored_map_point_count',
+                                     lambda msg: self._on_colored_count(msg, optimized=False), 10)
+        self.create_subscription(PointCloud2, self._updates_topic,
+                                 lambda msg: self._on_map_update(msg, optimized=self.optimized_view),
+                                 qos_profile_sensor_data)
+        self.create_subscription(PointCloud2, self._tile_topic,
                                  self._on_tile, qos_profile_sensor_data)
+        if self.optimized_view:
+            self.create_subscription(PointCloud2, '/lio/colored_map_updates',
+                                     lambda msg: self._on_map_update(msg, optimized=False),
+                                     qos_profile_sensor_data)
+            self.create_subscription(PointCloud2, '/lio/colored_map_tile',
+                                     self._on_tile, qos_profile_sensor_data)
         self.tile_request_publisher = self.create_publisher(
-            String, '/lio/colored_map_tile_request', 10)
+            String, self._tile_request_topic, 10)
+        self.raw_tile_request_publisher = (
+            self.create_publisher(String, '/lio/colored_map_tile_request', 10)
+            if self.optimized_view else self.tile_request_publisher)
         self.save_client = self.create_client(Trigger, '/lio/save_pcd')
         self.get_logger().info(
             f'Web viewer subscribes to {self.topic}, fallback={self.fallback_topic or "disabled"} '
             f'(max_points={self.max_points}, '
             f'rate={self.rate_hz:.2f} Hz, voxel={self.voxel_size:.3f} m)')
 
-    def _on_colored_count(self, msg):
+    def _on_colored_count(self, msg, optimized=False):
         with self._lock:
+            if self.optimized_view and optimized != self._optimized_ready:
+                return
             self._colored_map_points = int(msg.data)
             self._pose_version += 1
 
-    def _on_map_update(self, msg):
+    def _on_camera(self, msg):
+        now = time.monotonic()
+        if now - self._camera_last_submit < 1.0 / self.camera_rate_hz:
+            return
+        if self._camera_future is not None and not self._camera_future.done():
+            return
+        self._camera_last_submit = now
+        self._camera_future = self._camera_encoder.submit(self._encode_camera, msg)
+
+    def _encode_camera(self, msg):
+        try:
+            frame = self._camera_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            height, width = frame.shape[:2]
+            if width > 640:
+                frame = cv2.resize(frame, (640, max(1, round(height * 640 / width))))
+            ok, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if ok:
+                with self._lock:
+                    self._camera_frame = b'CAMJ' + jpeg.tobytes()
+                    self._camera_version += 1
+        except Exception:
+            LOG.exception('Camera frame encoding failed')
+
+    def camera_snapshot(self):
         with self._lock:
+            return self._camera_version, self._camera_frame
+
+    def _on_map_generation(self, msg):
+        with self._lock:
+            if int(msg.data) != self._map_generation:
+                self._map_generation = int(msg.data)
+                self._optimized_ready = True
+                self._latest = None
+                self._stats['stamp'] = 0.0
+                self._colored_map_points = None
+                self._delta_queue.clear()
+                self._apply_optimized_path_locked()
+                self._pose_version += 1
+
+    def _on_optimized_path(self, msg):
+        poses = [[float(p.pose.position.x), float(p.pose.position.y),
+                  float(p.pose.position.z)] for p in msg.poses]
+        if not poses or not all(all(math.isfinite(v) for v in p) for p in poses):
+            return
+        with self._lock:
+            self._optimized_trajectory = poses
+            if self._optimized_ready:
+                self._apply_optimized_path_locked()
+                self._pose_version += 1
+
+    def _apply_optimized_path_locked(self):
+        if not self._optimized_trajectory:
+            return
+        self._trajectory.clear()
+        for point in self._optimized_trajectory:
+            self._trajectory.append(point)
+        self._pose = self._optimized_trajectory[-1]
+        self._distance = sum(math.dist(a, b) for a, b in zip(
+            self._optimized_trajectory, self._optimized_trajectory[1:]))
+
+    def _on_map_update(self, msg, optimized=False):
+        with self._lock:
+            if self.optimized_view and optimized != self._optimized_ready:
+                return
+            if self.optimized_view and not optimized:
+                # Raw map increments are the visible source until the first
+                # optimized snapshot has completed.
+                self._latest_topic = '/lio/global_map'
+                self._pose_version += 1
             if self._pending_delta_encodes >= 8:
                 return  # A later tile fetch recovers the visible area.
             self._pending_delta_encodes += 1
@@ -234,11 +362,21 @@ class CloudNode(Node):
         self._pending_tiles[request_id] = future
         request = String()
         request.data = f'{request_id} {x} {y} {z} {limit}'
-        self.tile_request_publisher.publish(request)
+        publisher = (self.tile_request_publisher if
+                     not self.optimized_view or self._optimized_ready else
+                     self.raw_tile_request_publisher)
+        publisher.publish(request)
         return request_id, future
 
     def _on_cloud(self, msg, topic):
         now = time.monotonic()
+        is_optimized = topic == '/lio/optimized_colored_map'
+        if self.optimized_view:
+            with self._lock:
+                if is_optimized:
+                    self._optimized_ready = True
+                elif self._optimized_ready:
+                    return
         primary = topic == self.topic
         if primary:
             self._last_primary = now
@@ -271,13 +409,21 @@ class CloudNode(Node):
     def destroy_node(self):
         self._encoder.shutdown(wait=True)
         self._update_encoder.shutdown(wait=True)
+        self._camera_encoder.shutdown(wait=True)
         return super().destroy_node()
 
     def snapshot(self):
         with self._lock:
             return self._latest, dict(self._stats)
 
-    def _on_odom(self, msg):
+    def _on_odom(self, msg, optimized=False):
+        if self.optimized_view:
+            with self._lock:
+                if optimized != self._optimized_ready:
+                    return
+        self._update_odom(msg)
+
+    def _update_odom(self, msg):
         p = msg.pose.pose.position
         pose = [float(p.x), float(p.y), float(p.z)]
         if not all(math.isfinite(v) for v in pose):
@@ -321,9 +467,12 @@ class CloudNode(Node):
                                         'tile_cache_max_points': self.tile_cache_max_points,
                                         'tile_draw_max_points': self.tile_draw_max_points,
                                         'tile_request_max_points': self.tile_request_max_points,
+                                        'map_generation': self._map_generation,
                                         'trajectory': self._trajectory.snapshot(),
                                         'topic': self._latest_topic,
-                                        'odometry_topic': self.get_parameter('odometry_topic').value}
+                                        'odometry_topic': ('/lio/optimized_odom'
+                                                           if self.optimized_view and self._optimized_ready
+                                                           else self.get_parameter('odometry_topic').value)}
 
 
 class WebServer:
@@ -445,6 +594,7 @@ class WebServer:
         last_snapshot_sent = 0.0
         last_delta_sequence = 0
         last_pose_version = -1
+        last_camera_version = -1
         try:
             while not writer.is_closing():
                 await asyncio.sleep(0.2)
@@ -466,6 +616,11 @@ class WebServer:
                     writer.write(self._frame(json.dumps(telemetry).encode('utf-8'), opcode=1))
                     await writer.drain()
                     last_pose_version = pose_version
+                camera_version, camera_frame = self.node.camera_snapshot()
+                if camera_frame and camera_version != last_camera_version:
+                    writer.write(self._frame(camera_frame))
+                    await writer.drain()
+                    last_camera_version = camera_version
                 # Drain client control frames without blocking the producer.
                 if reader.at_eof():
                     break
