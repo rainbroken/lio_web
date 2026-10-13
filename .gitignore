@@ -21,3 +21,9 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# Python/native build artifacts
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
