@@ -3,30 +3,15 @@ import itertools
 import json
 import math
 import os
-import struct
 import threading
 from collections import OrderedDict
 
 import numpy as np
+from lio_web import _native
 
 
 def encode(points, magic, origin=None):
-    if origin is None:
-        if not len(points):
-            raise ValueError('empty optimized overview')
-        origin = points[:, :3].min(axis=0)
-        scale = max(.01, float(np.max(points[:, :3].max(axis=0)-origin))/32760)
-    else:
-        origin = np.asarray(origin)
-        scale = .01
-    packed = np.empty(len(points), dtype=[('xyz','<i2',(3,)),('rgba','u1',(4,))])
-    packed['xyz'] = np.rint((points[:,:3]-origin)/scale).astype('<i2')
-    rgb = points[:,4].astype(np.uint32)
-    packed['rgba'][:,0] = (rgb >> 16)&255
-    packed['rgba'][:,1] = (rgb >> 8)&255
-    packed['rgba'][:,2] = rgb&255
-    packed['rgba'][:,3] = np.clip(np.where(points[:,3]>1,points[:,3],points[:,3]*255),0,255).astype(np.uint8)
-    return struct.pack('<4sIf3f', magic, len(points), scale, *origin) + packed.tobytes()
+    return _native.encode_points(points, magic.decode('ascii'), origin)
 
 
 class OptimizedBlocks:
@@ -70,19 +55,14 @@ class OptimizedBlocks:
 
     @staticmethod
     def transform(xyz, transform):
-        # Elementwise arithmetic avoids spawning BLAS threads per small scan.
-        return (xyz[:, 0, None]*transform[:, 0] + xyz[:, 1, None]*transform[:, 1] +
-                xyz[:, 2, None]*transform[:, 2] + transform[:, 3])
+        return _native.transform(xyz, transform)
 
     def records(self, first, count):
-        raw = os.pread(self.source.fileno(), count*20, first*20)
-        if len(raw) != count*20:
-            raise ValueError('archive prefix changed or truncated')
-        floats = np.frombuffer(raw, dtype='<f4').reshape(-1,5)
-        rgb = np.frombuffer(raw, dtype='<u4').reshape(-1,5)[:,4]
-        return floats, rgb
+        return _native.read_samples(self.source.fileno(), first*20, count, 1)
 
     def overview(self, limit):
+        if limit <= 0:
+            raise ValueError('overview limit must be positive')
         step = max(1, math.ceil(self.count/limit))
         sampled = []
         for first, count, transform in self.blocks:
@@ -91,13 +71,15 @@ class OptimizedBlocks:
             offset = (-first) % step
             if offset >= count:
                 continue
-            # Read only overview samples, not every archived point.
-            payload = b''.join(os.pread(self.source.fileno(), 20, i*20)
-                               for i in range(first+offset, first+count, step))
-            selected = np.frombuffer(payload, dtype='<f4').reshape(-1,5)
-            rgb = np.frombuffer(payload, dtype='<u4').reshape(-1,5)[:,4]
-            xyz = self.transform(selected[:,:3], transform)
-            sampled.append(np.column_stack((xyz, selected[:,3], rgb)))
+            # Bounded chunks retain cancellation points for very large blocks.
+            for begin in range(first+offset, first+count, step*8192):
+                if self.cancelled():
+                    raise InterruptedError('optimized snapshot superseded')
+                selected = _native.read_samples(
+                    self.source.fileno(), begin*20,
+                    min(step*8192, first+count-begin), step)
+                selected[:, :3] = self.transform(selected[:, :3], transform)
+                sampled.append(selected)
         points = np.concatenate(sampled) if sampled else np.empty((0,5))
         points = points[np.isfinite(points).all(axis=1)]
         return encode(points, b'LIO3'), len(points)
@@ -125,22 +107,14 @@ class OptimizedBlocks:
         if len(candidates):
             stride = max(1, len(candidates)//32)
             candidates = np.concatenate([candidates[i::stride] for i in range(stride)])
-        selected, seen = [], set()
+        builder = _native.TileBuilder(origin, limit)
         for index in candidates:
             first, count, transform = self.blocks[index]
-            raw, rgb = self.records(first, count)
-            xyz = self.transform(raw[:,:3], transform)
-            valid = np.flatnonzero(np.isfinite(xyz).all(axis=1) &
-                                   ((xyz >= origin) & (xyz < origin+5)).all(axis=1))
-            for i in valid:
-                key = tuple(np.floor(xyz[i]/.01).astype(np.int64))
-                if key in seen:
-                    continue
-                seen.add(key)
-                selected.append((*xyz[i], float(raw[i,3]), int(rgb[i])))
-                if len(selected) >= limit:
-                    return encode(np.array(selected), b'LIT3', origin)
-        return encode(np.array(selected).reshape(-1,5), b'LIT3', origin)
+            for begin in range(first, first+count, 8192):
+                raw = self.records(begin, min(8192, first+count-begin))
+                if builder.append(raw, transform):
+                    return builder.payload()
+        return builder.payload()
 
     def close(self):
         if self.source is not None:

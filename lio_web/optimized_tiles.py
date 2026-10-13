@@ -5,9 +5,10 @@ Only offsets and tile bounds are indexed; no second full point cloud in RAM.
 import math
 import os
 import sqlite3
-import struct
 import tempfile
 import numpy as np
+from lio_web import _native
+from lio_web.optimized_blocks import encode
 
 
 class OptimizedTiles:
@@ -55,42 +56,24 @@ class OptimizedTiles:
             db.execute('CREATE INDEX tile ON points(x,y,z)')
 
     def tile(self, x, y, z, limit):
-        points = {}
+        builder = _native.TileBuilder((x*5,y*5,z*5), limit)
+        identity = np.eye(3,4)
         with sqlite3.connect(self.db) as db:
             # Stream rows; voxel dedup matches raw map's 1 cm detail sampling.
-            offsets = (int(offset) for (block,) in db.execute(
-                'SELECT offsets FROM points WHERE x=? AND y=? AND z=?', (x,y,z))
-                       for offset in np.frombuffer(block, dtype='<i8'))
-            for offset in offsets:
-                px,py,pz,intensity,rgb = struct.unpack('<ffffI', os.pread(self.source.fileno(),20,offset))
-                key = (math.floor(px/.01),math.floor(py/.01),math.floor(pz/.01))
-                if key not in points:
-                    strength = int(max(0,min(255,intensity if intensity>1 else intensity*255))) if math.isfinite(intensity) else 0
-                    points[key] = (px,py,pz,(rgb>>16)&255,(rgb>>8)&255,rgb&255,strength)
-                if len(points) >= limit:
+            for (block,) in db.execute(
+                    'SELECT offsets FROM points WHERE x=? AND y=? AND z=?', (x,y,z)):
+                raw = _native.read_offsets(self.source.fileno(), np.frombuffer(block, dtype='<i8'))
+                if builder.append(raw, identity):
                     break
-        origin = (x*5,y*5,z*5)
-        payload = bytearray(struct.pack('<4sIf3f',b'LIT3',len(points),.01,*origin))
-        for px,py,pz,r,g,b,i in points.values():
-            payload.extend(struct.pack('<hhhBBBB',round((px-origin[0])*100),round((py-origin[1])*100),round((pz-origin[2])*100),r,g,b,i))
-        return bytes(payload)
+        return builder.payload()
 
     def overview(self, limit):
-        values = []
+        if limit <= 0:
+            raise ValueError('overview limit must be positive')
         step = max(1, math.ceil(self.count/limit))
-        for index in range(0, self.count, step):
-            x,y,z,i,rgb = struct.unpack('<ffffI',os.pread(self.source.fileno(),20,self.start+index*20))
-            if all(math.isfinite(v) for v in (x,y,z)):
-                values.append((x,y,z,(rgb>>16)&255,(rgb>>8)&255,rgb&255,i))
-        if not values:
-            raise ValueError('empty optimized archive')
-        origin = tuple(min(p[k] for p in values) for k in range(3))
-        scale = max(.01,max(max(p[k] for p in values)-origin[k] for k in range(3))/32760)
-        data = bytearray(struct.pack('<4sIf3f',b'LIO3',len(values),scale,*origin))
-        for x,y,z,r,g,b,i in values:
-            strength = int(max(0,min(255,i if i>1 else i*255))) if math.isfinite(i) else 0
-            data.extend(struct.pack('<hhhBBBB',*(round((v-origin[k])/scale) for k,v in enumerate((x,y,z))),r,g,b,strength))
-        return bytes(data),len(values)
+        values = _native.read_samples(self.source.fileno(), self.start, self.count, step)
+        values = values[np.isfinite(values[:, :3]).all(axis=1)]
+        return encode(values, b'LIO3'), len(values)
 
     def __del__(self):
         if hasattr(self, 'source'):
