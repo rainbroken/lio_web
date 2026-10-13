@@ -14,6 +14,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+from urllib.request import urlopen
 
 import rclpy
 from ament_index_python.packages import get_package_share_directory
@@ -26,6 +27,7 @@ from std_srvs.srv import Trigger
 
 from lio_web.trajectory import TrajectoryHistory
 from lio_web.optimized_tiles import OptimizedTiles
+from lio_web.optimized_blocks import OptimizedBlocks
 
 
 LOG = logging.getLogger('lio_web')
@@ -119,9 +121,7 @@ class CloudNode(Node):
         self.declare_parameter('fallback_pointcloud_topic', '/lio/cloud_colored')
         self.declare_parameter('bind_host', '0.0.0.0')
         self.declare_parameter('port', 8765)
-        self.declare_parameter('device_name', 'IteraLIO 扫描设备')
-        self.declare_parameter('device_model', '')
-        self.declare_parameter('device_serial', '')
+        self.declare_parameter('app_api_base_url', 'http://127.0.0.1:8766')
         self.declare_parameter('max_points', 200000)
         self.declare_parameter('rate_hz', 1.0)
         self.declare_parameter('voxel_size', 0.05)
@@ -317,7 +317,20 @@ class CloudNode(Node):
         started = time.monotonic()
         try:
             LOG.info('Preparing optimized dense preview: notice=%s', notice)
-            index = OptimizedTiles(path, lambda: epoch != self._preview_epoch or notice != self._archive_notice)
+            cancelled = lambda: epoch != self._preview_epoch or notice != self._archive_notice
+            # Opened notices pin the manifest inode; archive reads are bounded
+            # to its immutable append-only prefix.
+            if hasattr(path, 'read'):
+                marker = path.read(1)
+                path.seek(0)
+            else:
+                with open(path, 'rb') as probe:
+                    marker = probe.read(1)
+            if marker == b'{':
+                source = path if hasattr(path, 'read') else open(path, 'rb')
+                index = OptimizedBlocks(source, cancelled)
+            else:
+                index = OptimizedTiles(path, cancelled)
             payload, points = index.overview(self.max_points)
             with self._lock:
                 if epoch != self._preview_epoch or notice != self._archive_notice:
@@ -659,6 +672,7 @@ class WebServer:
     def __init__(self, node, host, port):
         self.node, self.host, self.port = node, host, port
         self.clients = set()
+        self.tile_slots = asyncio.Semaphore(2)
 
     async def start(self):
         self.server = await asyncio.start_server(self._handle, self.host, self.port)
@@ -672,7 +686,7 @@ class WebServer:
             parts = first.split()
             path = urlsplit(parts[1]).path if len(parts) == 3 else ''
             if path.startswith('/api/'):
-                await self._api(writer, parts[0], path)
+                await self._api(writer, parts[0], path, request)
             elif first == 'POST /save-pcd HTTP/1.1':
                 await self._save_pcd(writer, request)
             elif first.startswith('GET /tile?'):
@@ -684,34 +698,39 @@ class WebServer:
         except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError):
             writer.close()
 
-    async def _api(self, writer, method, path):
-        status = 200
-        if method == 'GET' and path == '/api/device':
-            result = {
-                'name': self.node.get_parameter('device_name').value,
-                'model': self.node.get_parameter('device_model').value or None,
-                'serial': self.node.get_parameter('device_serial').value or None,
-                'software_version': None,
-                'software_component': 'lio_web',
-                'battery_percent': None, 'temperature_c': None,
-                'storage': None, 'hardware_version': None, 'firmware_version': None,
-                'capabilities': {'scan_control': False, 'task_management': False,
-                                 'live_preview': True},
-            }
-        elif method == 'GET' and path == '/api/status':
-            _, telemetry = self.node.telemetry()
-            result = {
-                # Receiving ROS messages cannot establish the scanner lifecycle.
-                'state': 'unknown', 'task_id': None, 'task_name': None,
-                'duration_seconds': telemetry.get('scan_duration'),
-                'point_count': telemetry.get('colored_map_points'),
-                'health': {}, 'warnings': [],
-                'message': '只读预览服务；扫描启停与任务管理尚未接入',
-            }
-        else:
-            status = 501
-            result = {'success': False,
-                      'message': '当前 lio_web 不支持扫描启停或任务管理接口'}
+    async def _api(self, writer, method, path, request=b''):
+        # Compatibility only: device data and lifecycle have one owner.
+        status = 410
+        result = {'success': False, 'code': 'API_MOVED',
+                  'message': 'App API 已迁移到 lio_communicate，请使用设备 API 地址'}
+        if method == 'GET' and path in ('/api/device', '/api/status'):
+            def fetch():
+                from urllib.request import Request
+                from urllib.error import HTTPError
+                headers = {}
+                for line in request.decode('iso-8859-1').split('\r\n')[1:]:
+                    key, separator, value = line.partition(':')
+                    if separator and key.lower() == 'authorization':
+                        headers['Authorization'] = value.strip()
+                url = self.node.get_parameter('app_api_base_url').value.rstrip('/') + path
+                try:
+                    response = urlopen(Request(url, headers=headers), timeout=2)
+                except HTTPError as error:
+                    response = error
+                with response:
+                    data = response.read(1024 * 1024 + 1)
+                    if len(data) > 1024 * 1024:
+                        raise ValueError('API response too large')
+                    result = json.loads(data)
+                    if not isinstance(result, dict):
+                        raise ValueError('API response must be an object')
+                    return response.code, result
+            try:
+                status, result = await asyncio.to_thread(fetch)
+            except Exception:
+                status = 503
+                result = {'success': False, 'code': 'API_UNAVAILABLE',
+                          'message': 'lio_communicate 设备服务不可用'}
         body = json.dumps(result, ensure_ascii=False).encode('utf-8')
         writer.write((f'HTTP/1.1 {status} API Result\r\n'
                       'Content-Type: application/json; charset=utf-8\r\n'
@@ -785,7 +804,14 @@ class WebServer:
                 if requested_version != version:
                     body, status = b'version changed', '409 Conflict'
                 else:
-                    body = await asyncio.to_thread(index.tile, x, y, z, limit)
+                    if self.tile_slots.locked():
+                        body = b'tile requests busy'
+                        writer.write(b'HTTP/1.1 429 Too Many Requests\r\nContent-Length: 18\r\nConnection: close\r\n\r\n'+body)
+                        await writer.drain()
+                        writer.close()
+                        return
+                    async with self.tile_slots:
+                        body = await asyncio.to_thread(index.tile, x, y, z, limit)
                     with self.node._lock:
                         valid = index is self.node._optimized_tiles and version == self.node._map_generation
                     if not valid:

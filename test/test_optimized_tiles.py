@@ -6,6 +6,34 @@ from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from lio_web.server import CloudNode, WebServer
 from lio_web.optimized_tiles import OptimizedTiles
+from lio_web.optimized_blocks import OptimizedBlocks
+import json
+import numpy as np
+
+
+def test_local_blocks_rotation_cross_tile_and_append_prefix(tmp_path):
+    archive = tmp_path/'colored_points.bin'
+    records = [(.5,0,0,42,0x123456), (1,0,0,42,0xabcdef)]
+    archive.write_bytes(b''.join(struct.pack('<ffffI',*r) for r in records))
+    manifest = tmp_path/'optimized_preview.json'
+    manifest.write_text(json.dumps({'format':'scanforge-blocks-v1','archive':str(archive),
+        'points':2,'blocks':[{'first':0,'count':2,
+            'transform':[0,-1,0,5, 1,0,0,0, 0,0,1,0],
+            'bounds':[.5,0,0,1,0,0]}]}))
+    index = OptimizedBlocks(manifest.open('rb'))
+    try:
+        # Later appends must never enter this version's immutable prefix.
+        with archive.open('ab') as f:f.write(struct.pack('<ffffI',100,100,100,1,0))
+        payload,count = index.overview(100)
+        assert count == 2
+        origin = struct.unpack_from('<3f',payload,12)
+        assert np.allclose(origin,[5,.5,0])
+        assert payload[30:34] == bytes([0x12,0x34,0x56,42])
+        assert struct.unpack_from('<I',index.tile(0,0,0,100),4)[0] == 0
+        tile = index.tile(1,0,0,100)
+        assert struct.unpack_from('<I',tile,4)[0] == 2
+        assert struct.unpack_from('<hhh',tile,24) == (0,50,0)
+    finally:index.close()
 
 
 def test_superseded_archive_stops_indexing(tmp_path):

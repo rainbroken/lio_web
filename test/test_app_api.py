@@ -1,57 +1,54 @@
-"""Check the real HTTP router without requiring LiDAR hardware."""
+"""The preview server forwards read-only API data, never fabricates task state."""
 import asyncio
 import json
 from types import SimpleNamespace
 
+from aiohttp import web
 from lio_web.server import WebServer
 
 
-class DeviceStub:
-    def get_parameter(self, name):
-        return SimpleNamespace(value={
-            'device_name': 'Test scanner', 'device_model': '',
-            'device_serial': '',
-        }[name])
-
-    def telemetry(self):
-        return 1, {'scan_duration': 12.5, 'colored_map_points': 1234}
-
-
-def test_app_json_routes():
+def test_app_api_forwarding():
     async def run():
-        server = WebServer(DeviceStub(), '127.0.0.1', 0)
+        async def device(request):
+            if request.headers.get('Authorization') != 'Bearer test-token':
+                return web.json_response({'code': 'UNAUTHORIZED'}, status=401)
+            return web.json_response({'name': 'Gateway-owned scanner', 'battery_percent': None})
+        app = web.Application()
+        app.router.add_get('/api/device', device)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '127.0.0.1', 0)
+        await site.start()
+        upstream = site._server.sockets[0].getsockname()[1]
+        node = SimpleNamespace(get_parameter=lambda name: SimpleNamespace(value=f'http://127.0.0.1:{upstream}'))
+        server = WebServer(node, '127.0.0.1', 0)
         await server.start()
         port = server.server.sockets[0].getsockname()[1]
 
-        async def request(method, path):
+        async def request(method, path, auth=''):
             reader, writer = await asyncio.open_connection('127.0.0.1', port)
-            writer.write(f'{method} {path} HTTP/1.1\r\nHost: localhost\r\n\r\n'.encode())
+            writer.write(f'{method} {path} HTTP/1.1\r\nHost: localhost\r\nAuthorization: {auth}\r\n\r\n'.encode())
             await writer.drain()
             reply = await reader.read()
             writer.close()
             await writer.wait_closed()
             headers, body = reply.split(b'\r\n\r\n', 1)
             assert b'Content-Type: application/json' in headers
-            return headers, json.loads(body)
-
+            return int(headers.split()[1]), json.loads(body)
         try:
-            headers, device = await request('GET', '/api/device')
-            assert b'200' in headers
-            assert device['name'] == 'Test scanner'
-            assert device['battery_percent'] is None
-            assert device['capabilities']['scan_control'] is False
-            headers, state = await request('GET', '/api/status')
-            assert b'200' in headers
-            assert state['duration_seconds'] == 12.5
-            assert state['point_count'] == 1234
-            assert state['state'] == 'unknown'
-            for method, path in [('POST', '/api/scan/start'),
-                                 ('GET', '/api/tasks'), ('GET', '/api/missing')]:
-                headers, result = await request(method, path)
-                assert b'501' in headers
-                assert result['success'] is False
+            code, result = await request('GET', '/api/device')
+            assert code == 401
+            code, result = await request('GET', '/api/device', 'Bearer test-token')
+            assert code == 200
+            assert result['name'] == 'Gateway-owned scanner'
+            code, result = await request('POST', '/api/scan/start')
+            assert code == 410
+            await runner.cleanup()
+            code, result = await request('GET', '/api/device')
+            assert code == 503
+            assert result['code'] == 'API_UNAVAILABLE'
         finally:
             server.server.close()
             await server.server.wait_closed()
-
+            await runner.cleanup()
     asyncio.run(run())

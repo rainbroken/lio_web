@@ -12,6 +12,8 @@ lio_web_server:
     trajectory_max_points: 200000
     bind_host: 0.0.0.0
     port: 8765
+    # Read-only compatibility forwarding, not a second API implementation.
+    app_api_base_url: http://127.0.0.1:8766
     max_points: 200000
     rate_hz: 1.0
     voxel_size: 0.05
